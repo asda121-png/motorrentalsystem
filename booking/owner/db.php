@@ -24,7 +24,7 @@ $tables = [
     userid INT AUTO_INCREMENT PRIMARY KEY,
     fullname VARCHAR(255) NOT NULL,
     role ENUM('customer', 'admin') DEFAULT 'customer',
-    status ENUM('pending', 'active', 'disabled') DEFAULT 'pending',
+    status ENUM('pending', 'active', 'disabled') DEFAULT 'active',
     is_verified TINYINT(1) DEFAULT 0,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone_number VARCHAR(20),
@@ -157,13 +157,33 @@ if (mysqli_num_rows($cust_phone) == 0) {
 // Check for customer status update to include 'pending'
 $cust_status_check = mysqli_query($conn, "SHOW COLUMNS FROM customers WHERE Field = 'status' AND Type LIKE '%pending%'");
 if (mysqli_num_rows($cust_status_check) == 0) {
-    mysqli_query($conn, "ALTER TABLE customers MODIFY COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'pending'");
+    mysqli_query($conn, "ALTER TABLE customers MODIFY COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'active'");
 }
+
+// Ensure default status is active so unverified customers can still login
+mysqli_query($conn, "ALTER TABLE customers ALTER COLUMN status SET DEFAULT 'active'");
+
+// Update existing pending customers to active so they can login (verification is handled by is_verified)
+mysqli_query($conn, "UPDATE customers SET status='active' WHERE status='pending'");
 
 // Check for is_verified column
 $cust_verified_check = mysqli_query($conn, "SHOW COLUMNS FROM customers LIKE 'is_verified'");
 if (mysqli_num_rows($cust_verified_check) == 0) {
     mysqli_query($conn, "ALTER TABLE customers ADD COLUMN is_verified TINYINT(1) DEFAULT 0 AFTER status");
+}
+
+// Check expected_return_date type and modify to DATETIME if it is DATE so we can store time
+$rental_date_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'expected_return_date'");
+$rd_row = mysqli_fetch_assoc($rental_date_check);
+if (stripos($rd_row['Type'], 'datetime') === false) {
+    mysqli_query($conn, "ALTER TABLE rentals MODIFY COLUMN expected_return_date DATETIME NULL");
+}
+
+// Check rental_end_date type and modify to DATETIME if it is DATE
+$rental_end_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'rental_end_date'");
+$red_row = mysqli_fetch_assoc($rental_end_check);
+if (stripos($red_row['Type'], 'datetime') === false) {
+    mysqli_query($conn, "ALTER TABLE rentals MODIFY COLUMN rental_end_date DATETIME NULL");
 }
 
 // Check for damage columns in rentals
@@ -178,6 +198,18 @@ $rental_feedback_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'fe
 if (mysqli_num_rows($rental_feedback_check) == 0) {
     mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN rating INT DEFAULT NULL AFTER repair_cost");
     mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN feedback TEXT DEFAULT NULL AFTER rating");
+}
+
+// Check for 'Approved' in rentals status
+$rental_status_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals WHERE Field = 'status' AND Type LIKE '%Approved%'");
+if (mysqli_num_rows($rental_status_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals MODIFY COLUMN status ENUM('Pending', 'Approved', 'Active', 'Completed', 'Overdue') DEFAULT 'Active'");
+}
+
+// Check for 'Reserved' in bikes status
+$bike_status_check = mysqli_query($conn, "SHOW COLUMNS FROM bikes WHERE Field = 'status' AND Type LIKE '%Reserved%'");
+if (mysqli_num_rows($bike_status_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE bikes MODIFY COLUMN status ENUM('Available', 'Reserved', 'Rented', 'Maintenance') DEFAULT 'Available'");
 }
 
 // --- AUTOMATIC MAINTENANCE CHECK ---

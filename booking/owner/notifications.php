@@ -5,7 +5,7 @@ session_start();
 if (isset($_GET['logout'])) {
     session_unset();
     session_destroy();
-    header("Location: index.php");
+    header("Location: ../index.php");
     exit();
 }
 
@@ -87,11 +87,11 @@ if (isset($_SESSION['userid'])) {
                 </div>
                 
                 <div class="hidden md:flex gap-8 text-sm font-semibold uppercase tracking-wider text-primary items-center">
-                    <a href="index.php" class="hover:text-accent transition">Home</a>
+                    <a href="../index.php" class="hover:text-accent transition">Home</a>
                     <?php if(isset($_SESSION['userid'])): ?>
-                        <a href="mybooks.php" class="hover:text-accent transition">My Bookings</a>
+                        <a href="../mybooks.php" class="hover:text-accent transition">My Bookings</a>
                     <?php endif; ?>
-                    <a href="contact.php" class="hover:text-accent transition">Contact</a>
+                    <a href="../contact.php" class="hover:text-accent transition">Contact</a>
                 </div>
 
                 <div class="flex items-center gap-4">
@@ -125,8 +125,8 @@ if (isset($_SESSION['userid'])) {
                             </div>
                         </div>
                     <?php else: ?>
-                        <a href="login.php" class="bg-primary text-white px-5 py-2 rounded-full text-sm font-bold shadow-md hover:bg-secondary transition">Login</a>
-                        <a href="register.php" class="hidden md:block text-primary font-bold text-sm hover:text-secondary">Register</a>
+                        <a href="../login.php" class="bg-primary text-white px-5 py-2 rounded-full text-sm font-bold shadow-md hover:bg-secondary transition">Login</a>
+                        <a href="../register.php" class="hidden md:block text-primary font-bold text-sm hover:text-secondary">Register</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -208,7 +208,7 @@ if (isset($_SESSION['userid'])) {
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path></svg>
                                 </span>
                             </div>
-                            <a href="book.php?id=<?php echo $bike['id']; ?>" class="px-6 py-2.5 rounded-xl bg-secondary hover:bg-primary text-white font-bold transition-all shadow-md active:scale-95 text-sm">
+                            <a href="../book.php?id=<?php echo $bike['id']; ?>" class="px-6 py-2.5 rounded-xl bg-secondary hover:bg-primary text-white font-bold transition-all shadow-md active:scale-95 text-sm">
                                 <?php echo isset($_SESSION['userid']) ? 'Book Ride' : 'View Details'; ?>
                             </a>
                         </div>

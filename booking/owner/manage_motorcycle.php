@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
     $customer_name = mysqli_real_escape_string($conn, $_POST['customer_name']);
     $amount = (float)$_POST['amount_collected'];
     $start_date = $_POST['start_date'];
-    $end_date = $_POST['end_date'];
+    $end_date = str_replace('T', ' ', $_POST['end_date']); // Handle datetime-local format
     $owner_id = $_SESSION['userid'];
     
     // 1. Update bike status to Rented
@@ -145,6 +145,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
     mysqli_query($conn, "INSERT INTO rentals (bike_id, owner_id, customer_id, amount_collected, rental_start_date, expected_return_date, status) VALUES ($bike_id, $owner_id, 0, $amount, '$start_date', '$end_date', 'Active')");
 
     header("Location: manage_motorcycle.php?msg=rented");
+    exit();
+}
+
+// --- HANDLE PICKUP UNIT (POST) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pickup_unit'])) {
+    $bike_id = (int)$_POST['bike_id'];
+    $rental_id = (int)$_POST['rental_id'];
+    
+    // 1. Update Bike Status
+    mysqli_query($conn, "UPDATE bikes SET status='Rented' WHERE id=$bike_id");
+    // 2. Update Rental Status
+    mysqli_query($conn, "UPDATE rentals SET status='Active' WHERE id=$rental_id");
+
+    header("Location: manage_motorcycle.php?msg=picked_up");
     exit();
 }
 
@@ -169,6 +183,7 @@ include 'header.php';
             if ($_GET['msg'] == 'returned') echo "Motorcycle marked as available for next customer.";
             if ($_GET['msg'] == 'added') echo "New motorcycle unit added to your fleet successfully.";
             if ($_GET['msg'] == 'updated') echo "Motorcycle status updated successfully.";
+            if ($_GET['msg'] == 'picked_up') echo "Motorcycle picked up! Status updated to 'Rented'.";
         ?>
         </span>
     </div>
@@ -198,19 +213,58 @@ include 'header.php';
         </thead>
         <tbody class="divide-y divide-slate-50">
             <?php
-            $bikes_res = mysqli_query($conn, "SELECT * FROM bikes ORDER BY model_name ASC");
+            $owner_id = $_SESSION['userid'];
+            $bikes_res = mysqli_query($conn, "SELECT b.*, 
+                r.id as rental_id, r.rental_start_date, r.expected_return_date, 
+                c.fullname as customer_name, c.phone_number 
+                FROM bikes b 
+                LEFT JOIN rentals r ON b.id = r.bike_id AND r.status IN ('Active', 'Overdue', 'Approved')
+                LEFT JOIN customers c ON r.customer_id = c.userid 
+                WHERE b.owner_id = $owner_id
+                ORDER BY b.model_name ASC");
             
             if (mysqli_num_rows($bikes_res) > 0) {
                 while($row = mysqli_fetch_assoc($bikes_res)) {
+                    $is_rented = !empty($row['rental_id']);
+                    $is_overdue = false;
+                    $late_days = 0;
+                    $penalty = 0;
+                    $row_style = "";
+
+                    if ($is_rented && $row['expected_return_date']) {
+                        $due = new DateTime($row['expected_return_date']);
+                        $now = new DateTime();
+                        $due->setTime(0,0,0);
+                        $now->setTime(0,0,0);
+                        if ($now > $due) {
+                            $is_overdue = true;
+                            $late_days = $now->diff($due)->days;
+                            $penalty = ($late_days * $row['daily_rate']) * 1.10; // Late fee + 10%
+                            $row_style = "background-color: #fff1f2;"; // Light red highlight
+                        }
+                    }
+
                     $status_class = strtolower($row['status']);
                     $status_color = match($status_class) {
                         'available' => 'bg-emerald-100 text-emerald-600',
+                        'reserved' => 'bg-purple-100 text-purple-600',
                         'rented' => 'bg-amber-100 text-amber-600',
                         'maintenance' => 'bg-red-100 text-red-600',
                         default => 'bg-slate-100 text-slate-500'
                     };
+
+                    $rental_json = $is_rented ? json_encode([
+                        'rental_id' => $row['rental_id'],
+                        'customer_name' => $row['customer_name'],
+                        'customer_phone' => $row['phone_number'],
+                        'start_date' => date('M d, Y h:i A', strtotime($row['rental_start_date'])),
+                        'due_date' => date('M d, Y h:i A', strtotime($row['expected_return_date'])),
+                        'is_overdue' => $is_overdue,
+                        'late_days' => $late_days,
+                        'penalty' => $penalty
+                    ], JSON_HEX_APOS | JSON_HEX_QUOT) : 'null';
                     ?>
-                    <tr class="group hover:bg-slate-50/50 transition-colors">
+                    <tr class="group hover:bg-slate-50/50 transition-colors" style="<?php echo $row_style; ?>">
                         <td class="px-8 py-6">
                             <div class="flex items-center gap-4">
                                 <div class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 text-lg overflow-hidden">
@@ -241,10 +295,13 @@ include 'header.php';
                                 <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
                                 <input type="hidden" name="update_status" value="1">
                                 <select name="status" onchange="this.form.submit()" class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border-none focus:ring-0 cursor-pointer <?php echo $status_color; ?>">
-                                    <?php foreach(['Available', 'Rented', 'Maintenance'] as $s): ?>
+                                    <?php foreach(['Available', 'Reserved', 'Rented', 'Maintenance'] as $s): ?>
                                         <option value="<?php echo $s; ?>" <?php echo $row['status'] === $s ? 'selected' : ''; ?>><?php echo $s; ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                                <?php if($is_overdue): ?>
+                                    <div class="mt-1 text-[10px] font-bold text-red-500 uppercase tracking-wider text-center"><i class="fa-solid fa-triangle-exclamation"></i> Late</div>
+                                <?php endif; ?>
                             </form>
                         </td>
                         <td class="px-8 py-6 text-right">
@@ -253,7 +310,19 @@ include 'header.php';
                                    class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary-hover transition-colors shadow-md shadow-primary/20">
                                     <i class="fa-solid fa-hand-holding-dollar"></i> Rent Now
                                 </button>
+                            <?php elseif ($row['status'] == 'Reserved'): ?>
+                                <form action="manage_motorcycle.php" method="POST" class="inline-block">
+                                    <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="rental_id" value="<?php echo $row['rental_id']; ?>">
+                                    <input type="hidden" name="pickup_unit" value="1">
+                                    <button type="submit" class="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors shadow-md shadow-purple-200">
+                                        <i class="fa-solid fa-key"></i> Pick Up
+                                    </button>
+                                </form>
                             <?php elseif ($row['status'] == 'Rented'): ?>
+                                <button onclick='openViewModal(<?php echo $rental_json; ?>)' class="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors mr-1" title="View Details">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
                                 <button onclick="openReturnModal(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['model_name']); ?>')" 
                                    class="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors">
                                     <i class="fa-solid fa-arrow-rotate-left"></i> Return & Inspect
@@ -430,7 +499,7 @@ include 'header.php';
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Return Date</label>
-                                <input type="date" name="end_date" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                                <input type="datetime-local" name="end_date" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
                             </div>
                         </div>
                         <div>
@@ -448,6 +517,59 @@ include 'header.php';
     </div>
 </div>
 
+<!-- VIEW RENTAL DETAILS MODAL -->
+<div id="viewRentalModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4 text-center">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:w-full sm:max-w-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-black text-slate-800">Rental Details</h3>
+                    <button onclick="document.getElementById('viewRentalModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                
+                <div class="space-y-4 text-sm">
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Booking Ref</span>
+                        <span class="font-bold text-slate-700" id="viewRentalRef"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Customer</span>
+                        <span class="font-bold text-slate-700" id="viewCustomer"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Phone</span>
+                        <span class="font-bold text-slate-700" id="viewPhone"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Picked Up</span>
+                        <span class="font-bold text-slate-700" id="viewStartDate"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Return Due</span>
+                        <span class="font-bold text-slate-700" id="viewDueDate"></span>
+                    </div>
+                    
+                    <!-- Late Section -->
+                    <div id="viewLateContainer" class="hidden bg-red-50 p-4 rounded-xl border border-red-100 mt-4">
+                        <div class="flex items-center gap-2 text-red-600 font-bold mb-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Overdue by <span id="viewLateDays"></span> Day(s)
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-red-800 text-xs font-bold uppercase tracking-wide">Total Penalty (+10%)</span>
+                            <span class="text-xl font-black text-red-600" id="viewPenalty"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <button onclick="document.getElementById('viewRentalModal').classList.add('hidden')" class="w-full py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     function openReturnModal(id, name) {
         document.getElementById('returnBikeId').value = id;
@@ -460,6 +582,25 @@ include 'header.php';
         document.getElementById('rentBikeName').textContent = name;
         document.getElementById('rentAmount').value = rate;
         document.getElementById('rentUnitModal').classList.remove('hidden');
+    }
+
+    function openViewModal(data) {
+        document.getElementById('viewRentalRef').textContent = '#' + data.rental_id;
+        document.getElementById('viewCustomer').textContent = data.customer_name;
+        document.getElementById('viewPhone').textContent = data.customer_phone || 'N/A';
+        document.getElementById('viewStartDate').textContent = data.start_date;
+        document.getElementById('viewDueDate').textContent = data.due_date;
+        
+        const lateContainer = document.getElementById('viewLateContainer');
+        if (data.is_overdue) {
+            lateContainer.classList.remove('hidden');
+            document.getElementById('viewLateDays').textContent = data.late_days;
+            document.getElementById('viewPenalty').textContent = '₱' + parseFloat(data.penalty).toFixed(2);
+        } else {
+            lateContainer.classList.add('hidden');
+        }
+        
+        document.getElementById('viewRentalModal').classList.remove('hidden');
     }
 </script>
 

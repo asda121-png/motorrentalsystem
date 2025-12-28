@@ -50,9 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $total_amount = $days * $daily_rate;
 
     // Insert into Rentals Table
-    // Note: expected_return_date is DATE in schema, so we format it Y-m-d
+    // Note: expected_return_date is DATETIME in schema
     $stmt = $conn->prepare("INSERT INTO rentals (bike_id, customer_id, owner_id, amount_collected, rental_start_date, expected_return_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Pending')");
-    $expected_return_str = $end->format('Y-m-d');
+    $expected_return_str = $end->format('Y-m-d H:i:s');
     $stmt->bind_param("iiidss", $bike_id, $customer_id, $owner_id, $total_amount, $pickup_date, $expected_return_str);
 
     if ($stmt->execute()) {

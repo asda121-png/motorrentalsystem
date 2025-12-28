@@ -36,11 +36,15 @@ if ($result) {
 // Fetch User Profile Image if logged in
 $profile_image = null;
 $unread_notif_count = 0;
+$user_status = null;
+$is_verified = 0;
 if (isset($_SESSION['userid'])) {
     $uid = (int)$_SESSION['userid'];
-    $u_res = mysqli_query($conn, "SELECT profile_image FROM customers WHERE userid=$uid");
+    $u_res = mysqli_query($conn, "SELECT profile_image, status, is_verified FROM customers WHERE userid=$uid");
     if ($u_res && $u_row = mysqli_fetch_assoc($u_res)) {
         $profile_image = $u_row['profile_image'];
+        $user_status = $u_row['status'];
+        $is_verified = (int)$u_row['is_verified'];
     }
 
     $unread_query = "SELECT COUNT(*) as count FROM notifications WHERE user_id = $uid AND user_type = 'customer' AND is_read = 0";
@@ -173,6 +177,16 @@ if (isset($_SESSION['userid'])) {
     <!-- Content -->
     <main class="max-w-7xl mx-auto px-4 py-12">
         
+        <?php if(isset($_SESSION['userid']) && $is_verified != 1): ?>
+        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-r-xl flex items-center gap-3 shadow-sm">
+            <div class="text-amber-500"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+            <div>
+                <p class="font-bold text-amber-800 text-sm">Account Verification Pending</p>
+                <p class="text-amber-700 text-xs">Please upload the important documents. Please wait for an admin to approve it.</p>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Filter -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
             <div>
@@ -230,9 +244,15 @@ if (isset($_SESSION['userid'])) {
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path></svg>
                                 </span>
                             </div>
-                            <a href="book.php?id=<?php echo $bike['id']; ?>" class="px-6 py-2.5 rounded-xl bg-secondary hover:bg-primary text-white font-bold transition-all shadow-md active:scale-95 text-sm">
-                                <?php echo isset($_SESSION['userid']) ? 'Book Ride' : 'View Details'; ?>
-                            </a>
+                            <?php if (isset($_SESSION['userid']) && $is_verified != 1): ?>
+                                <button type="button" onclick="alert('Your account is pending verification. Please wait for an admin to approve it.')" class="px-6 py-2.5 rounded-xl bg-gray-300 text-gray-600 font-bold cursor-not-allowed shadow-sm text-sm">
+                                    Verification Pending
+                                </button>
+                            <?php else: ?>
+                                <a href="book.php?id=<?php echo $bike['id']; ?>" class="px-6 py-2.5 rounded-xl bg-secondary hover:bg-primary text-white font-bold transition-all shadow-md active:scale-95 text-sm">
+                                    <?php echo isset($_SESSION['userid']) ? 'Book Ride' : 'View Details'; ?>
+                                </a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

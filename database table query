@@ -1,0 +1,95 @@
+CREATE DATABASE moto_rental_db;
+USE moto_rental_db;
+
+ CREATE TABLE IF NOT EXISTS customers (
+    userid INT AUTO_INCREMENT PRIMARY KEY,
+    fullname VARCHAR(255) NOT NULL,
+    role ENUM('customer', 'admin') DEFAULT 'customer',
+    status ENUM('pending', 'active', 'disabled') DEFAULT 'active',
+    is_verified TINYINT(1) DEFAULT 0,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone_number VARCHAR(20),
+    profile_image VARCHAR(255),
+    drivers_license_image VARCHAR(255),
+    valid_id_image VARCHAR(255),
+    hashedpassword VARCHAR(255) NOT NULL,
+    last_login DATETIME NULL DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_email (email),
+    INDEX idx_last_login (last_login)
+) ENGINE=InnoDB;,
+    CREATE TABLE IF NOT EXISTS owners (
+    ownerid INT AUTO_INCREMENT PRIMARY KEY,
+    fullname VARCHAR(255) NOT NULL,
+    shopname VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashedpassword VARCHAR(255) NOT NULL,
+    role ENUM('owner') DEFAULT 'owner',
+    status ENUM('active', 'disabled', 'pending') DEFAULT 'pending',
+    last_activity DATETIME NULL DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_email (email),
+    INDEX idx_status (status),
+    INDEX idx_last_activity (last_activity)
+) ENGINE=InnoDB;,
+    CREATE TABLE IF NOT EXISTS bikes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    owner_id INT NOT NULL,
+    model_name VARCHAR(100) NOT NULL,
+    plate_number VARCHAR(20) NOT NULL UNIQUE,
+    daily_rate DECIMAL(10, 2) NOT NULL,
+    status ENUM('Available', 'Rented', 'Maintenance') DEFAULT 'Available',
+    type VARCHAR(50) DEFAULT 'Scooter',
+    transmission VARCHAR(50) DEFAULT 'Automatic',
+    inclusions VARCHAR(255) DEFAULT 'Helmet',
+    description TEXT,
+    last_tire_change DATE NULL,
+    last_oil_change DATE NULL,
+    fuel_level INT DEFAULT 100,
+    image_url VARCHAR(255) DEFAULT NULL,
+    
+    FOREIGN KEY (owner_id) REFERENCES owners(ownerid) ON DELETE CASCADE,
+    
+    INDEX idx_owner (owner_id),
+    INDEX idx_status (status),
+    INDEX idx_plate (plate_number)
+) ENGINE=InnoDB;  
+ CREATE TABLE IF NOT EXISTS rentals (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bike_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    owner_id INT NOT NULL,  -- For easy owner reporting
+    amount_collected DECIMAL(10, 2) NOT NULL,
+    rental_start_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    rental_end_date DATETIME NULL,
+    damage_notes text,
+    repair_cost decimal(10,2),
+    rating int(11) ,
+feedback text,
+    expected_return_date DATETIME NULL,
+    status ENUM('Pending', 'Active', 'Completed', 'Overdue') DEFAULT 'Active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (bike_id) REFERENCES bikes(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(userid) ON DELETE CASCADE,
+    FOREIGN KEY (owner_id) REFERENCES owners(ownerid) ON DELETE CASCADE,
+    
+    INDEX idx_customer (customer_id),
+    INDEX idx_bike (bike_id),
+    INDEX idx_owner (owner_id),
+    INDEX idx_status (status),
+    INDEX idx_dates (rental_start_date, rental_end_date)
+) ENGINE=InnoDB;
+
+    CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    user_type ENUM('admin', 'owner', 'customer') NOT NULL,
+    message TEXT NOT NULL,
+    link VARCHAR(255),
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user (user_id, user_type)
+) ENGINE=InnoDB;

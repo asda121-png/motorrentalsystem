@@ -22,6 +22,13 @@ if (!$bike) {
     exit();
 }
 
+// Fetch Average Rating & Count
+$stats_query = "SELECT AVG(rating) as avg_rating, COUNT(*) as total_reviews FROM rentals WHERE bike_id = $bike_id AND rating IS NOT NULL";
+$stats_res = mysqli_query($conn, $stats_query);
+$stats = mysqli_fetch_assoc($stats_res);
+$avg_rating = $stats['avg_rating'] ? round($stats['avg_rating'], 1) : 0;
+$total_reviews = $stats['total_reviews'];
+
 // Fetch reviews
 $reviews_query = "SELECT r.rating, r.feedback, r.created_at, c.fullname, c.profile_image 
                   FROM rentals r 
@@ -94,7 +101,7 @@ $reviews_res = mysqli_query($conn, $reviews_query);
                     <?php if(isset($_SESSION['userid'])): ?>
                         <a href="mybooks.php" class="hover:text-accent transition">My Bookings</a>
                     <?php endif; ?>
-                    <a href="#" class="hover:text-accent transition">Contact</a>
+                    <a href="contact.php" class="hover:text-accent transition">Contact</a>
                 </div>
                 <div>
                     <?php if(isset($_SESSION['userid'])): ?>
@@ -172,8 +179,15 @@ $reviews_res = mysqli_query($conn, $reviews_query);
                 <!-- Title & Price Header -->
                 <div class="mb-8">
                     <h1 class="text-4xl font-black text-slate-800 mb-2"><?php echo htmlspecialchars($bike['model_name']); ?></h1>
-                    <div class="flex items-center gap-2 text-sm font-medium text-gray-500 mb-6">
-                        <i class="fa-solid fa-location-dot text-accent"></i> Available in Mati City
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="flex items-center gap-1 text-yellow-400 text-sm bg-yellow-50 px-2 py-1 rounded-lg border border-yellow-100">
+                            <i class="fa-solid fa-star"></i>
+                            <span class="font-bold text-slate-700 text-base ml-1"><?php echo $avg_rating; ?></span>
+                            <span class="text-slate-400 font-medium text-xs ml-1">(<?php echo $total_reviews; ?> reviews)</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-sm font-medium text-gray-500">
+                            <i class="fa-solid fa-location-dot text-accent"></i> Available in Mati City
+                        </div>
                     </div>
                     <div class="flex items-end gap-2">
                         <span class="text-5xl font-black text-primary tracking-tight">₱<?php echo number_format($bike['daily_rate'], 0); ?></span>

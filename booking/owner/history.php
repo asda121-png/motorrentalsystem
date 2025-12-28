@@ -47,7 +47,7 @@ include 'header.php';
             <?php
             // Fetch all rentals that are NOT pending (History usually implies actions already taken)
             // We sort by date descending to show the newest first
-            $query = "SELECT r.*, b.model_name, b.plate_number, c.fullname as customer_name, c.profile_image 
+            $query = "SELECT r.*, b.model_name, b.plate_number, c.fullname as customer_name, c.profile_image, c.is_verified 
                       FROM rentals r 
                       JOIN bikes b ON r.bike_id = b.id 
                       LEFT JOIN customers c ON r.customer_id = c.userid
@@ -88,7 +88,11 @@ include 'header.php';
                                     <div class="font-bold text-slate-700 text-sm">
                                         <?php echo htmlspecialchars($row['customer_name'] ?? 'Unknown'); ?>
                                     </div>
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Verified</div>
+                                    <?php if(!empty($row['is_verified']) && $row['is_verified'] == 1): ?>
+                                        <div class="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Verified</div>
+                                    <?php else: ?>
+                                        <div class="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Unverified</div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </td>

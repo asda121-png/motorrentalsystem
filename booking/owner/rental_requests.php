@@ -37,16 +37,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'approve' && isset($_GET['id'])
             exit();
         }
         
-        // 1. Mark Rental as Completed/Active
-        mysqli_query($conn, "UPDATE rentals SET status='Active' WHERE id=$request_id");
+        // 1. Mark Rental as Approved (Reserved)
+        mysqli_query($conn, "UPDATE rentals SET status='Approved' WHERE id=$request_id");
         
-        // 2. Mark Bike as Rented
-        mysqli_query($conn, "UPDATE bikes SET status='Rented' WHERE id=$bike_id");
+        // 2. Mark Bike as Reserved
+        mysqli_query($conn, "UPDATE bikes SET status='Reserved' WHERE id=$bike_id");
 
         // 3. Notify Customer
         $bike_model_res = mysqli_query($conn, "SELECT model_name FROM bikes WHERE id=$bike_id");
         $bike_model = mysqli_fetch_assoc($bike_model_res)['model_name'];
-        $customer_message = "Your booking for '$bike_model' has been approved!";
+        $customer_message = "Your booking for '$bike_model' has been approved! Please proceed to pickup.";
         create_notification($conn, $customer_id, 'customer', $customer_message, 'mybooks.php');
         
         header("Location: rental_requests.php?msg=approved");
@@ -71,7 +71,7 @@ include 'header.php';
         <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent"><i class="fa-solid fa-check"></i></div>
         <div class="text-slate-600 font-medium">
         <?php 
-            if ($_GET['msg'] == 'approved') echo "Request approved! Payment logged and motorcycle status updated to 'Rented'.";
+            if ($_GET['msg'] == 'approved') echo "Request approved! Motorcycle is now 'Reserved' for pickup.";
             if ($_GET['msg'] == 'rejected') echo "Rental request has been removed.";
             if ($_GET['msg'] == 'unavailable') echo "Action Failed: This motorcycle is currently not available (Rented or Maintenance).";
         ?>
@@ -87,7 +87,7 @@ include 'header.php';
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <?php
     // Fetch only Pending rentals
-    $query = "SELECT r.*, b.model_name, b.plate_number, c.fullname as customer_name, c.profile_image 
+    $query = "SELECT r.*, b.model_name, b.plate_number, c.fullname as customer_name, c.profile_image, c.is_verified 
               FROM rentals r 
               JOIN bikes b ON r.bike_id = b.id 
               LEFT JOIN customers c ON r.customer_id = c.userid
@@ -110,9 +110,15 @@ include 'header.php';
                         </div>
                         <div>
                             <h3 class="text-lg font-bold text-slate-800"><?= htmlspecialchars($row['customer_name'] ?? 'Unknown'); ?></h3>
-                            <div class="flex items-center gap-2 text-xs font-bold text-emerald-500 bg-emerald-50 px-2 py-1 rounded-md w-max mt-1">
-                                <i class="fa-solid fa-shield-halved"></i> Verified Customer
-                            </div>
+                            <?php if(!empty($row['is_verified']) && $row['is_verified'] == 1): ?>
+                                <div class="flex items-center gap-2 text-xs font-bold text-emerald-500 bg-emerald-50 px-2 py-1 rounded-md w-max mt-1">
+                                    <i class="fa-solid fa-shield-halved"></i> Verified Customer
+                                </div>
+                            <?php else: ?>
+                                <div class="flex items-center gap-2 text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-md w-max mt-1">
+                                    <i class="fa-solid fa-circle-exclamation"></i> Unverified
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="text-right">

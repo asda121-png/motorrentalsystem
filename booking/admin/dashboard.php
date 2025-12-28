@@ -44,6 +44,29 @@ mysqli_select_db($conn, $db_name);
 mysqli_query($conn, "ALTER TABLE owners ADD COLUMN IF NOT EXISTS status ENUM('Pending', 'Verified', 'Suspended') DEFAULT 'Pending'");
 mysqli_query($conn, "ALTER TABLE owners ADD COLUMN IF NOT EXISTS role ENUM('Owner', 'Admin') DEFAULT 'Owner'");
 
+// --- SCHEMA UPDATE: Customer Status & Verification ---
+// Ensure default status is active so unverified customers can still login
+mysqli_query($conn, "ALTER TABLE customers MODIFY COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'active'");
+mysqli_query($conn, "ALTER TABLE customers ALTER COLUMN status SET DEFAULT 'active'");
+mysqli_query($conn, "UPDATE customers SET status='active' WHERE status='pending'");
+
+// Ensure is_verified column exists
+mysqli_query($conn, "ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 0");
+
+// Ensure expected_return_date is DATETIME
+$rental_date_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'expected_return_date'");
+$rd_row = mysqli_fetch_assoc($rental_date_check);
+if (stripos($rd_row['Type'], 'datetime') === false) {
+    mysqli_query($conn, "ALTER TABLE rentals MODIFY COLUMN expected_return_date DATETIME NULL");
+}
+
+// Check rental_end_date type and modify to DATETIME if it is DATE
+$rental_end_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'rental_end_date'");
+$red_row = mysqli_fetch_assoc($rental_end_check);
+if (stripos($red_row['Type'], 'datetime') === false) {
+    mysqli_query($conn, "ALTER TABLE rentals MODIFY COLUMN rental_end_date DATETIME NULL");
+}
+
 $owner_name = $_SESSION['fullname']; // Use session data
 $current_page = $_GET['page'] ?? 'admin_master';
 
@@ -59,6 +82,15 @@ if (isset($_GET['verify_owner'])) {
 // Handle Customer Verification
 if (isset($_GET['verify_customer'])) {
     $target_id = (int)$_GET['verify_customer'];
+    
+    // Check for required documents before verifying
+    $check_docs = mysqli_query($conn, "SELECT profile_image, drivers_license_image, valid_id_image, phone_number FROM customers WHERE userid=$target_id");
+    $doc_row = mysqli_fetch_assoc($check_docs);
+    if (empty($doc_row['profile_image']) || empty($doc_row['drivers_license_image']) || empty($doc_row['valid_id_image']) || empty($doc_row['phone_number'])) {
+        header("Location: ?page=verify_customers&error=incomplete");
+        exit();
+    }
+
     mysqli_query($conn, "UPDATE customers SET status='active', is_verified=1 WHERE userid=$target_id");
     
     // Notify customer
@@ -84,6 +116,18 @@ $master_stats_res = mysqli_query($conn, "SELECT
     (SELECT SUM(amount_collected) FROM rentals WHERE status != 'Pending') as platform_revenue,
     (SELECT COUNT(*) FROM customers WHERE role='customer') as total_customers");
 $master_stats = mysqli_fetch_assoc($master_stats_res);
+
+/**
+ * Creates a new notification.
+ */
+function create_notification($conn, $user_id, $user_type, $message, $link = '#') {
+    $user_id_sql = is_null($user_id) ? "NULL" : (int)$user_id;
+    $message_sql = mysqli_real_escape_string($conn, $message);
+    $link_sql = mysqli_real_escape_string($conn, $link);
+    $user_type_sql = mysqli_real_escape_string($conn, $user_type);
+    
+    mysqli_query($conn, "INSERT INTO notifications (user_id, user_type, message, link) VALUES ($user_id_sql, '$user_type_sql', '$message_sql', '$link_sql')");
+}
 ?>
 <?php
 // --- NOTIFICATION LOGIC ---
@@ -314,6 +358,12 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                         <p style="color: var(--text-muted);">View and verify customer identifications.</p>
                     </div>
 
+                    <?php if(isset($_GET['error']) && $_GET['error'] == 'incomplete'): ?>
+                        <div style="padding: 15px; background: #fee2e2; color: #991b1b; border-radius: 8px; margin-bottom: 20px; border: 1px solid #fca5a5;">
+                            <i class="fa-solid fa-circle-exclamation"></i> <strong>Cannot Verify:</strong> Customer is missing required documents (Profile Picture, Phone, License, or ID).
+                        </div>
+                    <?php endif; ?>
+
                     <div class="card">
                         <table>
                             <thead><tr><th>Customer Name</th><th>Email</th><th>Status</th><th>Documents</th><th style="text-align:right">Action</th></tr></thead>
@@ -359,7 +409,13 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                             <td style="text-align:right">
                                                 <button class="btn btn-outline" onclick='openModal("customer", <?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, "UTF-8"); ?>)'><i class="fa-solid fa-eye"></i> View</button>
                                                 <?php if(!$row['is_verified']): ?>
-                                                    <a href="?verify_customer=<?= $row['userid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Approve</a>
+                                                    <?php 
+                                                    $is_complete = !empty($row['profile_image']) && !empty($row['drivers_license_image']) && !empty($row['valid_id_image']) && !empty($row['phone_number']);
+                                                    if ($is_complete): ?>
+                                                        <a href="?verify_customer=<?= $row['userid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Approve</a>
+                                                    <?php else: ?>
+                                                        <button class="btn btn-outline" style="opacity:0.5; cursor:not-allowed;" title="Missing Documents (Profile, ID, License, or Phone)"><i class="fa-solid fa-check"></i> Approve</button>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
                                                 <a href="?reject_customer=<?= $row['userid'] ?>" onclick="return confirm('Are you sure you want to delete this customer?')" class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-trash"></i> Delete</a>
                                             </td>
@@ -452,17 +508,67 @@ function include_logic_fleet($conn) { ?>
     <div style="margin-bottom: 30px;"><h1>Fleet Management</h1><p>Manage your motorcycle availability.</p></div>
     <div class="card">
         <table>
-            <thead><tr><th>Bike Model</th><th>Plate Number</th><th>Daily Rate</th><th>Status</th><th>Owner</th></tr></thead>
+            <thead><tr><th>Bike Model</th><th>Plate Number</th><th>Daily Rate</th><th>Status</th><th>Owner</th><th>Action</th></tr></thead>
             <tbody>
                 <?php
-                $bikes_res = mysqli_query($conn, "SELECT b.*, o.fullname as owner_name FROM bikes b LEFT JOIN owners o ON b.owner_id = o.ownerid ORDER BY b.id DESC");
-                while($row = mysqli_fetch_assoc($bikes_res)): ?>
-                    <tr>
+                $bikes_res = mysqli_query($conn, "SELECT b.*, o.fullname as owner_name, 
+                    r.id as rental_id, r.rental_start_date, r.expected_return_date, 
+                    c.fullname as customer_name, c.phone_number 
+                    FROM bikes b 
+                    LEFT JOIN owners o ON b.owner_id = o.ownerid 
+                    LEFT JOIN rentals r ON b.id = r.bike_id AND r.status IN ('Active', 'Overdue')
+                    LEFT JOIN customers c ON r.customer_id = c.userid 
+                    ORDER BY b.id DESC");
+                
+                while($row = mysqli_fetch_assoc($bikes_res)): 
+                    $is_rented = !empty($row['rental_id']);
+                    $is_overdue = false;
+                    $late_days = 0;
+                    $penalty = 0;
+                    $row_style = "";
+                    
+                    if ($is_rented && $row['expected_return_date']) {
+                        $due = new DateTime($row['expected_return_date']);
+                        $now = new DateTime();
+                        $due->setTime(0,0,0);
+                        $now->setTime(0,0,0);
+                        if ($now > $due) {
+                            $is_overdue = true;
+                            $late_days = $now->diff($due)->days;
+                            $penalty = ($late_days * $row['daily_rate']) * 1.10;
+                            $row_style = "background-color: #fff1f2;"; // Light red highlight
+                        }
+                    }
+                    
+                    $rental_json = $is_rented ? json_encode([
+                        'rental_id' => $row['rental_id'],
+                        'customer_name' => $row['customer_name'],
+                        'customer_phone' => $row['phone_number'],
+                        'start_date' => date('M d, Y h:i A', strtotime($row['rental_start_date'])),
+                        'due_date' => date('M d, Y h:i A', strtotime($row['expected_return_date'])),
+                        'is_overdue' => $is_overdue,
+                        'late_days' => $late_days,
+                        'penalty' => $penalty
+                    ], JSON_HEX_APOS | JSON_HEX_QUOT) : 'null';
+                ?>
+                    <tr style="<?= $row_style ?>">
                         <td><strong><?= $row['model_name'] ?></strong></td>
                         <td><code><?= $row['plate_number'] ?></code></td>
                         <td>$<?= number_format($row['daily_rate'], 2) ?></td>
-                        <td><span class="badge" style="background: #f1f5f9; color: #475569;"><?= $row['status'] ?></span></td>
+                        <td>
+                            <span class="badge" style="background: #f1f5f9; color: #475569;"><?= $row['status'] ?></span>
+                            <?php if($is_overdue): ?>
+                                <span class="badge" style="background: #ef4444; color: white; margin-left:5px;">Late</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= htmlspecialchars($row['owner_name'] ?? 'Unknown') ?></td>
+                        <td>
+                            <?php if($is_rented): ?>
+                                <button class="btn btn-outline" onclick='openModal("rental", <?= $rental_json ?>)'><i class="fa-solid fa-eye"></i> View</button>
+                            <?php else: ?>
+                                <span style="color:#cbd5e1;">-</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endwhile; ?>
             </tbody>
@@ -501,6 +607,31 @@ function include_logic_fleet($conn) { ?>
                 <p><strong>Email:</strong> <span>${data.email}</span></p>
                 <p><strong>Status:</strong> <span style="text-transform:capitalize">${data.status}</span></p>
                 <p><strong>Joined:</strong> <span>${data.created_at}</span></p>
+            `;
+        } else if (type === 'rental') {
+            title.innerText = 'Rental Details';
+            let lateHtml = '';
+            if (data.is_overdue) {
+                lateHtml = `
+                    <div style="background:#fee2e2; color:#991b1b; padding:15px; border-radius:8px; margin-top:15px; border:1px solid #fca5a5;">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <strong style="font-size:1.1em;">Overdue by ${data.late_days} Day(s)</strong>
+                        </div>
+                        <p style="margin:0; font-size:0.9em;">Total Late Fee (+10%): <strong style="font-size:1.2em;">$${parseFloat(data.penalty).toFixed(2)}</strong></p>
+                    </div>
+                `;
+            }
+            body.innerHTML = `
+                <div style="display:grid; gap:10px;">
+                    <p><strong>Booking Ref:</strong> <span>#${data.rental_id}</span></p>
+                    <p><strong>Customer:</strong> <span>${data.customer_name}</span></p>
+                    <p><strong>Phone:</strong> <span>${data.customer_phone || 'N/A'}</span></p>
+                    <hr style="border:0; border-top:1px solid #eee; margin:5px 0;">
+                    <p><strong>Picked Up:</strong> <span>${data.start_date}</span></p>
+                    <p><strong>Return Due:</strong> <span>${data.due_date}</span></p>
+                </div>
+                ${lateHtml}
             `;
         } else {
             title.innerText = 'Customer Details';

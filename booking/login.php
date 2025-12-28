@@ -193,7 +193,7 @@ unset($_SESSION['error'], $_SESSION['success']);
                     <div class="space-y-1.5">
                         <div class="flex justify-between items-center px-1">
                             <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Password</label>
-                            <a href="#" class="text-[10px] font-bold text-accent uppercase hover:underline">Forgot?</a>
+                            <a href="forgot_password.php" class="text-[10px] font-bold text-accent uppercase hover:underline">Forgot?</a>
                         </div>
                         <input type="password" name="password" required placeholder="••••••••" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
                     </div>

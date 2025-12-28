@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'smtp_mailer.php';
 
 // 1. Database Configuration
 $host = 'localhost';
@@ -15,16 +16,49 @@ try {
     die("Database connection failed. Please contact support.");
 }
 
-// 2. Process Form Submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// 2. Handle OTP Verification (Step 2)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
+    $entered_otp = trim($_POST['otp_code']);
+    
+    if (isset($_SESSION['temp_user']) && $entered_otp == $_SESSION['temp_user']['otp']) {
+        // OTP Match! Insert into Database
+        $fullname = $_SESSION['temp_user']['fullname'];
+        $email = $_SESSION['temp_user']['email'];
+        $hashedPassword = $_SESSION['temp_user']['password'];
+
+        try {
+            $stmt = $pdo->prepare("
+                INSERT INTO customers (fullname, email, hashedpassword, status, is_verified)
+                VALUES (?, ?, ?, 'active', 0)
+            ");
+            $stmt->execute([$fullname, $email, $hashedPassword]);
+
+            // Create notification for admin
+            $admin_message = "New customer '$fullname' registered and verified email.";
+            $admin_link = 'admin/dashboard.php?page=verify_customers';
+            $notif_stmt = $pdo->prepare("INSERT INTO notifications (user_type, message, link) VALUES ('admin', ?, ?)");
+            $notif_stmt->execute([$admin_message, $admin_link]);
+
+            unset($_SESSION['temp_user']); // Clear temp session
+            $_SESSION['success'] = "Registration successful! Email verified.";
+            header("Location: login.php");
+            exit();
+        } catch (Exception $e) {
+            $_SESSION['error'] = "Registration failed: " . $e->getMessage();
+        }
+    } else {
+        $_SESSION['error'] = "Invalid verification code. Please try again.";
+    }
+}
+// 3. Handle Initial Registration (Step 1)
+elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $fullname = trim($_POST['fullname'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
-    $phone_number = trim($_POST['phone_number'] ?? '');
 
     // Validation Logic
-    if (empty($fullname) || empty($email) || empty($password) || empty($confirm_password) || empty($phone_number)) {
+    if (empty($fullname) || empty($email) || empty($password) || empty($confirm_password)) {
         $_SESSION['error'] = "All fields are required.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['error'] = "Invalid email format.";
@@ -40,48 +74,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->rowCount() > 0) {
             $_SESSION['error'] = "This email is already registered.";
         } else {
-            // Hash and Store
-            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            // Generate 6-Digit OTP
+            $otp = rand(100000, 999999);
             
-            // Handle File Uploads
-            $upload_dir = "assets/uploads/";
-            if (!file_exists($upload_dir)) {
-                mkdir($upload_dir, 0777, true);
-            }
+            // Send Email
+            $subject = "Email Verification - Mati City Moto Rentals";
+            $body = "<h1>Verify your Email</h1><p>Your verification code is: <strong style='font-size:24px;'>$otp</strong></p><p>Please enter this code to complete your registration.</p>";
             
-            function upload_doc($file, $dir) {
-                if(isset($file) && $file['error'] == 0) {
-                    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-                    $new_name = uniqid('doc_') . '.' . $ext;
-                    if(move_uploaded_file($file['tmp_name'], $dir . $new_name)) {
-                        return $dir . $new_name;
-                    }
-                }
-                return null;
-            }
-
-            $profile_image = upload_doc($_FILES['profile_image'], $upload_dir);
-            $license_image = upload_doc($_FILES['drivers_license'], $upload_dir);
-            $valid_id_image = upload_doc($_FILES['valid_id'], $upload_dir);
-
-            try {
-                $stmt = $pdo->prepare("
-                    INSERT INTO customers (fullname, email, phone_number, hashedpassword, status, is_verified, profile_image, drivers_license_image, valid_id_image)
-                    VALUES (?, ?, ?, ?, 'active', 0, ?, ?, ?)
-                ");
-                $stmt->execute([$fullname, $email, $phone_number, $hashedPassword, $profile_image, $license_image, $valid_id_image]);
-
-                // Create notification for admin
-                $admin_message = "New customer '$fullname' registered and uploaded verification documents.";
-                $admin_link = 'admin/dashboard.php?page=verify_customers';
-                $notif_stmt = $pdo->prepare("INSERT INTO notifications (user_type, message, link) VALUES ('admin', ?, ?)");
-                $notif_stmt->execute([$admin_message, $admin_link]);
-
-                $_SESSION['success'] = "Registration successful! Your account is pending admin verification.";
-                header("Location: login.php"); // Redirect to login page to show success message
-                exit();
-            } catch (Exception $e) {
-                $_SESSION['error'] = "An unexpected error occurred. Please try again.";
+            if (send_gmail($email, $subject, $body)) {
+                // Store in session
+                $_SESSION['temp_user'] = [
+                    'fullname' => $fullname, 'email' => $email, 
+                    'password' => password_hash($password, PASSWORD_DEFAULT), 'otp' => $otp
+                ];
+            } else {
+                $_SESSION['error'] = "Failed to send verification email. Please check your internet or try again.";
             }
         }
     }
@@ -91,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-// 3. Prepare display variables and clear sessions
+// 4. Prepare display variables and clear sessions
 $error = $_SESSION['error'] ?? null;
 $success = $_SESSION['success'] ?? null;
 unset($_SESSION['error'], $_SESSION['success']);
@@ -203,44 +210,48 @@ unset($_SESSION['error'], $_SESSION['success']);
                     </div>
                 <?php endif; ?>
 
-                <form action="register.php" method="POST" enctype="multipart/form-data" class="space-y-5">
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Full Name</label>
-                        <input type="text" name="fullname" required value="<?php echo isset($_POST['fullname']) ? htmlspecialchars($_POST['fullname']) : ''; ?>" placeholder="John Doe" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Email Address</label>
-                        <input type="email" name="email" required placeholder="name@email.com" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Phone Number</label>
-                        <input type="text" name="phone_number" required placeholder="0912 345 6789" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Profile Picture</label>
-                        <input type="file" name="profile_image" required accept="image/*" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Driver's License</label>
-                        <input type="file" name="drivers_license" required accept="image/*" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Valid ID</label>
-                        <input type="file" name="valid_id" required accept="image/*" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Password</label>
-                        <input type="password" name="password" required placeholder="••••••••" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Confirm Password</label>
-                        <input type="password" name="confirm_password" required placeholder="••••••••" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
-                    </div>
-                    
-                    <button type="submit" class="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-xl shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98] mt-4">
-                        Create Account
-                    </button>
-                </form>
+                <?php if (isset($_SESSION['temp_user'])): ?>
+                    <!-- STEP 2: OTP FORM -->
+                    <form action="register.php" method="POST" class="space-y-5">
+                        <div class="text-center mb-4">
+                            <p class="text-sm text-gray-500">We sent a 6-digit code to <br><strong><?php echo htmlspecialchars($_SESSION['temp_user']['email']); ?></strong></p>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Verification Code</label>
+                            <input type="text" name="otp_code" required placeholder="123456" maxlength="6" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-center text-2xl font-bold tracking-widest text-primary">
+                        </div>
+                        <button type="submit" name="verify_otp" class="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-xl shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98] mt-4">
+                            Verify Email
+                        </button>
+                        <div class="text-center mt-4">
+                            <a href="register.php" class="text-xs font-bold text-gray-400 hover:text-primary">Cancel / Resend</a>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <!-- STEP 1: REGISTRATION FORM -->
+                    <form action="register.php" method="POST" class="space-y-5">
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Full Name</label>
+                            <input type="text" name="fullname" required value="<?php echo isset($_POST['fullname']) ? htmlspecialchars($_POST['fullname']) : ''; ?>" placeholder="John Doe" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Email Address</label>
+                            <input type="email" name="email" required placeholder="name@email.com" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Password</label>
+                            <input type="password" name="password" required placeholder="••••••••" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Confirm Password</label>
+                            <input type="password" name="confirm_password" required placeholder="••••••••" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                        </div>
+                        
+                        <button type="submit" name="register" class="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-xl shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98] mt-4">
+                            Send Verification Code
+                        </button>
+                    </form>
+                <?php endif; ?>
 
                 <div class="mt-8 text-center">
                     <p class="text-sm text-gray-500">

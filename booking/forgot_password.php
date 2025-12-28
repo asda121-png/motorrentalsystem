@@ -9,6 +9,15 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) { die("Database connection failed."); }
 
+// --- SCHEMA FIX: Ensure reset columns exist ---
+foreach (['customers', 'owners'] as $table) {
+    $check = $pdo->query("SHOW COLUMNS FROM $table LIKE 'reset_token_hash'");
+    if ($check->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE $table ADD COLUMN reset_token_hash VARCHAR(64) NULL DEFAULT NULL");
+        $pdo->exec("ALTER TABLE $table ADD COLUMN reset_token_expires_at DATETIME NULL DEFAULT NULL");
+    }
+}
+
 $msg = "";
 $msg_type = "";
 
@@ -36,10 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($user) {
         $token = bin2hex(random_bytes(16));
         $token_hash = hash("sha256", $token);
-        $expiry = date("Y-m-d H:i:s", time() + 60 * 30); // 30 mins
 
-        $update = $pdo->prepare("UPDATE $table SET reset_token_hash = ?, reset_token_expires_at = ? WHERE $id_col = ?");
-        $update->execute([$token_hash, $expiry, $id]);
+        // Use MySQL time for expiry to match the NOW() check in reset_password.php
+        $update = $pdo->prepare("UPDATE $table SET reset_token_hash = ?, reset_token_expires_at = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE $id_col = ?");
+        $update->execute([$token_hash, $id]);
 
         $resetLink = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "/reset_password.php?token=$token&type=$table";
         

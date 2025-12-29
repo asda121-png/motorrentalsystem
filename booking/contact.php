@@ -29,7 +29,7 @@ if (isset($_SESSION['userid'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Us - Mati City Moto Rentals</title>
+    <title>Contact Us - MatiMotoRental</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -61,7 +61,7 @@ if (isset($_SESSION['userid'])) {
                     <div class="w-8 h-8 rounded bg-primary flex items-center justify-center">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
-                    <span class="text-xl font-bold text-primary tracking-tight uppercase">Mati<span class="text-accent">Rentals</span></span>
+                    <span class="text-xl font-bold text-primary tracking-tight">MatiMoto<span class="text-accent">Rental</span></span>
                 </div>
                 
                 <div class="hidden md:flex gap-8 text-sm font-semibold uppercase tracking-wider text-primary items-center">
@@ -165,7 +165,7 @@ if (isset($_SESSION['userid'])) {
                             </div>
                             <div>
                                 <h4 class="font-bold text-gray-800">Email Us</h4>
-                                <p class="text-gray-500 text-sm mt-1">support@matirentals.com<br>bookings@matirentals.com</p>
+                                <p class="text-gray-500 text-sm mt-1">support@matimotorental.com<br>bookings@matimotorental.com</p>
                             </div>
                         </div>
                     </div>

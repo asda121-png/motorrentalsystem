@@ -99,7 +99,7 @@ if ($bookings_res) {
                     <div class="w-8 h-8 rounded bg-primary flex items-center justify-center">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
-                    <span class="text-xl font-bold text-primary tracking-tight uppercase">Mati<span class="text-accent">Rentals</span></span>
+                    <span class="text-xl font-bold text-primary tracking-tight">MatiMotoRental</span>
                 </div>
                 <div class="hidden md:flex gap-8 text-sm font-semibold uppercase tracking-wider text-primary">
                     <a href="index.php" class="hover:text-accent transition">Home</a>

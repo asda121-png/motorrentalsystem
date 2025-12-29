@@ -148,7 +148,7 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
                     'fullname' => $fullname, 'email' => $email, 
                     'password' => password_hash($password, PASSWORD_DEFAULT), 'otp' => $otp
                 ];
-                header("Location: register.php");
+                header("Location: ../register.php");
                 exit();
             } else {
                 $_SESSION['global_error'] = "Failed to send verification email. Please check your internet.";

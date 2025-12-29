@@ -148,7 +148,7 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
                     'fullname' => $fullname, 'email' => $email, 
                     'password' => password_hash($password, PASSWORD_DEFAULT), 'otp' => $otp
                 ];
-                header("Location: ../register.php");
+                header("Location: register.php");
                 exit();
             } else {
                 $_SESSION['global_error'] = "Failed to send verification email. Please check your internet.";
@@ -269,7 +269,8 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                 <?php endif; ?>
 
                 <?php if (isset($_SESSION['temp_user'])): ?>
-                    <form action="register.php" method="POST" class="space-y-5">
+                    <form action="register.php" method="POST" enctype="multipart/form-data" class="space-y-5">
+                        <h3 class="text-lg font-bold text-primary mb-2">Personal Information</h3>
                         <div class="text-center mb-4">
                             <p class="text-sm text-gray-500">We sent a 6-digit code to <br><strong><?php echo htmlspecialchars($_SESSION['temp_user']['email']); ?></strong></p>
                         </div>

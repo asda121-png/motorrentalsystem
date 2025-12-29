@@ -422,7 +422,7 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
 
                     <div class="card">
                         <table>
-                            <thead><tr><th>Customer Name</th><th>Email</th><th>Status</th><th>Documents</th><th style="text-align:right">Action</th></tr></thead>
+                            <thead><tr><th>Customer Name</th><th>Email</th><th>Status</th><th>Documents</th><th style="text-align:center">Action</th></tr></thead>
                             <tbody>
                                 <?php
                                 $customers_res = mysqli_query($conn, "SELECT * FROM customers WHERE role='customer' ORDER BY is_verified ASC, userid DESC");
@@ -462,7 +462,7 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                                     <span class="badge" style="background: #fee2e2; color: #991b1b;">No ID</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td style="text-align:right">
+                                            <td style="text-align:center">
                                                 <button class="btn btn-outline" onclick='openModal("customer", <?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, "UTF-8"); ?>)'><i class="fa-solid fa-eye"></i> View</button>
                                                 <?php if(!$row['is_verified']): ?>
                                                     <?php 
@@ -660,9 +660,9 @@ function include_logic_fleet($conn) { ?>
             let actionBtns = '';
             if (data.status && data.status.toLowerCase() === 'pending') {
                 actionBtns = `
-                    <div style="display:flex; gap:12px; justify-content:center; margin-top:18px;">
-                        <button class='btn btn-outline' type='button' onclick='closeModal()'><i class="fa-solid fa-arrow-left"></i> Cancel</button>
-                        <a href='?verify_owner=${data.ownerid}' class='btn btn-success'><i class="fa-solid fa-check"></i> Approve</a>
+                    <div style="display:flex; gap:12px; justify-content:center; margin-top:18px; width:100%; margin-left:auto; margin-right:auto;">
+                        <button class='btn btn-outline' type='button' onclick='closeModal()'><i class=\"fa-solid fa-arrow-left\"></i> Cancel</button>
+                        <a href='?verify_owner=${data.ownerid}' class='btn btn-success'><i class=\"fa-solid fa-check\"></i> Approve</a>
                     </div>
                 `;
             }

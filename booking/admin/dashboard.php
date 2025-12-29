@@ -41,24 +41,24 @@ mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS $db_name");
 mysqli_select_db($conn, $db_name);
 
 // --- SCHEMA UPDATE: Add Owner Status & Admin Flag ---
-// Ensure 'status' column in 'owners' table exists and has correct ENUM values
+// Ensure 'status' column in 'owners' table exists and has correct ENUM values (lowercase)
 $result = mysqli_query($conn, "SHOW COLUMNS FROM owners LIKE 'status'");
 if (mysqli_num_rows($result) == 0) {
-    mysqli_query($conn, "ALTER TABLE owners ADD COLUMN status ENUM('Pending', 'Verified', 'Suspended') DEFAULT 'Pending'");
+    mysqli_query($conn, "ALTER TABLE owners ADD COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'pending'");
 } else {
     $row = mysqli_fetch_assoc($result);
-    if (stripos($row['Type'], "'Pending','Verified','Suspended'") === false) {
-        mysqli_query($conn, "ALTER TABLE owners MODIFY COLUMN status ENUM('Pending', 'Verified', 'Suspended') DEFAULT 'Pending'");
+    if (stripos($row['Type'], "'pending','active','disabled'") === false) {
+        mysqli_query($conn, "ALTER TABLE owners MODIFY COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'pending'");
     }
 }
-// Ensure 'role' column in 'owners' table exists and has correct ENUM values
+// Ensure 'role' column in 'owners' table exists and has correct ENUM values (lowercase)
 $result = mysqli_query($conn, "SHOW COLUMNS FROM owners LIKE 'role'");
 if (mysqli_num_rows($result) == 0) {
-    mysqli_query($conn, "ALTER TABLE owners ADD COLUMN role ENUM('Owner', 'Admin') DEFAULT 'Owner'");
+    mysqli_query($conn, "ALTER TABLE owners ADD COLUMN role ENUM('owner', 'admin') DEFAULT 'owner'");
 } else {
     $row = mysqli_fetch_assoc($result);
-    if (stripos($row['Type'], "'Owner','Admin'") === false) {
-        mysqli_query($conn, "ALTER TABLE owners MODIFY COLUMN role ENUM('Owner', 'Admin') DEFAULT 'Owner'");
+    if (stripos($row['Type'], "'owner','admin'") === false) {
+        mysqli_query($conn, "ALTER TABLE owners MODIFY COLUMN role ENUM('owner', 'admin') DEFAULT 'owner'");
     }
 }
 

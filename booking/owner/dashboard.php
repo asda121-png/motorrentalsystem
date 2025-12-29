@@ -11,11 +11,19 @@ $page_title = "Owner Dashboard";
 $active_nav = "dashboard";
 
 // Ensure user is logged in as owner
+$account_status = $_SESSION['account_status'] ?? 'active';
 if (!isset($_SESSION['userid']) || ($_SESSION['role'] ?? '') !== 'owner') {
     header("Location: ../login.php");
     exit();
 }
 $owner_id = $_SESSION['userid'];
+
+
+// Show pending/inactive notice if not active
+if ($account_status !== 'active') {
+    echo '<div style="background:#fff3cd;color:#856404;padding:16px;border-radius:8px;margin:16px 0;text-align:center;font-weight:bold;">'
+        . 'Notice: Your owner account is <b>' . htmlspecialchars($account_status) . '</b>. Some features may be limited until approved by admin.</div>';
+}
 
 // --- FETCH SUMMARY STATISTICS ---
 

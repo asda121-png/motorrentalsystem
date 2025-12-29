@@ -36,6 +36,24 @@ $owner_shopname = $owner_details['shopname'];
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: '#0f766e', // Teal 700
+                            secondary: '#0ea5e9', // Sky 500
+                            accent: '#14b8a6', // Teal 500
+                            surface: '#ffffff',
+                            dark: '#111827',
+                        },
+                        fontFamily: {
+                            sans: ['Inter', 'sans-serif'],
+                        }
+                    }
+                }
+            }
+        </script>
     <script>
         tailwind.config = {
             theme: {

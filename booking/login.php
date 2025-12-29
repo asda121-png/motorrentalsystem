@@ -47,25 +47,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($user && password_verify($password, $user['hashedpassword'])) {
             // Check status
-            if ($user['status'] !== 'active') {
-                if ($userType === 'owner' && $user['status'] === 'pending') {
-                    $_SESSION['error'] = "Your owner account is pending approval.";
-                } elseif ($userType === 'customer' && $user['status'] === 'pending') {
-                    $_SESSION['error'] = "Your account is pending verification. Please wait for an admin to approve it.";
-                } else {
-                    $_SESSION['error'] = "Your account is currently inactive.";
-                }
+            $block_statuses = ['inactive', 'banned'];
+            if (in_array($user['status'], $block_statuses)) {
+                $_SESSION['error'] = "Your account is currently inactive or banned.";
             } else {
                 // Set Session Variables
                 $_SESSION['userid'] = ($userType === 'owner') ? $user['ownerid'] : $user['userid'];
                 $_SESSION['fullname'] = $user['fullname'];
                 $_SESSION['role'] = $user['role'];
+                $_SESSION['account_status'] = $user['status'];
 
                 // 3. Role-Based Redirection
                 if ($user['role'] === 'admin') {
                     header("Location: admin/dashboard.php");
                 } elseif ($user['role'] === 'owner') {
                     header("Location: owner/dashboard.php");
+                    exit();
                 } else {
                     // Default to customer landing page
                     header("Location: index.php");

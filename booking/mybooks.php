@@ -1,10 +1,25 @@
+
 <?php
 session_start();
 
-// 1. Check login status
-if (!isset($_SESSION['userid'])) {
-    header("Location: login.php");
-    exit();
+// 1. Check login status and role-based access (customer only)
+if (!isset($_SESSION['userid']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'customer') {
+    // For backward compatibility: if role is not set, try to fetch from DB
+    if (isset($_SESSION['userid']) && !isset($_SESSION['role'])) {
+        $conn = mysqli_connect('localhost', 'root', '', 'moto_rental_db');
+        if ($conn) {
+            $userid = (int)$_SESSION['userid'];
+            $res = mysqli_query($conn, "SELECT role FROM customers WHERE userid = $userid");
+            if ($row = mysqli_fetch_assoc($res)) {
+                $_SESSION['role'] = $row['role'];
+            }
+            mysqli_close($conn);
+        }
+    }
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'customer') {
+        header("Location: login.php");
+        exit();
+    }
 }
 
 // 2. Database Connection
@@ -129,12 +144,12 @@ if ($bookings_res) {
                     </div>
                     <div class="relative">
                         <button onclick="toggleProfileMenu()" class="flex items-center gap-3 focus:outline-none">
-                            <span class="hidden md:block text-sm font-bold text-gray-600">Hi, <?php echo htmlspecialchars($user['fullname']); ?></span>
+                            <span class="hidden md:block text-sm font-bold text-gray-600">Hi, <?php echo isset($user['fullname']) ? htmlspecialchars($user['fullname']) : 'User'; ?></span>
                             <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shadow-md border-2 border-white transition hover:scale-105 overflow-hidden">
                                 <?php if (!empty($user['profile_image'])): ?>
                                     <img src="<?php echo htmlspecialchars($user['profile_image']); ?>?v=<?php echo time(); ?>" class="w-full h-full object-cover">
                                 <?php else: ?>
-                                    <?php echo strtoupper(substr($user['fullname'], 0, 1)); ?>
+                                    <?php echo isset($user['fullname']) && $user['fullname'] !== null ? strtoupper(substr($user['fullname'], 0, 1)) : 'U'; ?>
                                 <?php endif; ?>
                             </div>
                         </button>
@@ -143,7 +158,7 @@ if ($bookings_res) {
                         <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
                             <div class="px-4 py-3 border-b border-gray-50 mb-1">
                                 <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Account</p>
-                                <p class="text-sm font-bold text-primary truncate"><?php echo htmlspecialchars($user['fullname']); ?></p>
+                                <p class="text-sm font-bold text-primary truncate"><?php echo isset($user['fullname']) ? htmlspecialchars($user['fullname']) : 'User'; ?></p>
                             </div>
                             <a href="profile.php" class="block px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary font-medium transition flex items-center gap-2"><i class="fa-solid fa-user-gear text-gray-400"></i> Profile & Setting</a>
                             <a href="index.php?logout=true" class="block px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 font-medium transition flex items-center gap-2"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>

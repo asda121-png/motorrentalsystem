@@ -80,7 +80,7 @@ feedback text,
     INDEX idx_bike (bike_id),
     INDEX idx_owner (owner_id),
     INDEX idx_status (status),
-    INDEX idx_dates (rental_start_date, rental_end_date)
+    INDEX idx_dates (rental_start_date, rental_end_date)    
 ) ENGINE=InnoDB;
 
     CREATE TABLE IF NOT EXISTS notifications (

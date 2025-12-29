@@ -95,7 +95,7 @@ if (isset($_SESSION['userid'])) {
                     <div class="w-8 h-8 rounded bg-primary flex items-center justify-center">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
-                    <span class="text-xl font-bold text-primary tracking-tight uppercase">Mati<span class="text-accent">Rentals</span></span>
+                    <span class="text-xl font-bold text-primary tracking-tight">MatiMotoRental</span>
                 </div>
                 
                 <div class="hidden md:flex gap-8 text-sm font-semibold uppercase tracking-wider text-primary items-center">
@@ -263,19 +263,15 @@ if (isset($_SESSION['userid'])) {
 
     <!-- Footer -->
     <footer class="bg-white py-12 px-4 border-t mt-12">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
+        <div class="max-w-7xl mx-auto flex flex-col items-center gap-2 text-center">
             <div>
-                <div class="flex items-center gap-2 justify-center md:justify-start mb-4">
+                <div class="flex items-center gap-2 justify-center mb-4">
                     <div class="w-6 h-6 rounded bg-primary flex items-center justify-center">
                         <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
                     <span class="font-bold text-primary uppercase tracking-tight">Mati Rentals</span>
                 </div>
                 <p class="text-gray-400 text-sm">© 2024 Mati City Motorcycle Rental Services.</p>
-            </div>
-            <div class="flex gap-4">
-                <a href="#" class="w-10 h-10 rounded-full border flex items-center justify-center hover:bg-primary hover:text-white transition text-gray-400">FB</a>
-                <a href="#" class="w-10 h-10 rounded-full border flex items-center justify-center hover:bg-primary hover:text-white transition text-gray-400">IG</a>
             </div>
         </div>
     </footer>

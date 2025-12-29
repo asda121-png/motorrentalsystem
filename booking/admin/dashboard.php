@@ -41,17 +41,42 @@ mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS $db_name");
 mysqli_select_db($conn, $db_name);
 
 // --- SCHEMA UPDATE: Add Owner Status & Admin Flag ---
-mysqli_query($conn, "ALTER TABLE owners ADD COLUMN IF NOT EXISTS status ENUM('Pending', 'Verified', 'Suspended') DEFAULT 'Pending'");
-mysqli_query($conn, "ALTER TABLE owners ADD COLUMN IF NOT EXISTS role ENUM('Owner', 'Admin') DEFAULT 'Owner'");
+// Ensure 'status' column in 'owners' table exists and has correct ENUM values
+$result = mysqli_query($conn, "SHOW COLUMNS FROM owners LIKE 'status'");
+if (mysqli_num_rows($result) == 0) {
+    mysqli_query($conn, "ALTER TABLE owners ADD COLUMN status ENUM('Pending', 'Verified', 'Suspended') DEFAULT 'Pending'");
+} else {
+    $row = mysqli_fetch_assoc($result);
+    if (stripos($row['Type'], "'Pending','Verified','Suspended'") === false) {
+        mysqli_query($conn, "ALTER TABLE owners MODIFY COLUMN status ENUM('Pending', 'Verified', 'Suspended') DEFAULT 'Pending'");
+    }
+}
+// Ensure 'role' column in 'owners' table exists and has correct ENUM values
+$result = mysqli_query($conn, "SHOW COLUMNS FROM owners LIKE 'role'");
+if (mysqli_num_rows($result) == 0) {
+    mysqli_query($conn, "ALTER TABLE owners ADD COLUMN role ENUM('Owner', 'Admin') DEFAULT 'Owner'");
+} else {
+    $row = mysqli_fetch_assoc($result);
+    if (stripos($row['Type'], "'Owner','Admin'") === false) {
+        mysqli_query($conn, "ALTER TABLE owners MODIFY COLUMN role ENUM('Owner', 'Admin') DEFAULT 'Owner'");
+    }
+}
 
 // --- SCHEMA UPDATE: Customer Status & Verification ---
 // Ensure default status is active so unverified customers can still login
-mysqli_query($conn, "ALTER TABLE customers MODIFY COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'active'");
-mysqli_query($conn, "ALTER TABLE customers ALTER COLUMN status SET DEFAULT 'active'");
+$result = mysqli_query($conn, "SHOW COLUMNS FROM customers LIKE 'status'");
+if (mysqli_num_rows($result) > 0) {
+    $row = mysqli_fetch_assoc($result);
+    if (stripos($row['Type'], "'pending','active','disabled'") === false) {
+        mysqli_query($conn, "ALTER TABLE customers MODIFY COLUMN status ENUM('pending', 'active', 'disabled') DEFAULT 'active'");
+    }
+}
 mysqli_query($conn, "UPDATE customers SET status='active' WHERE status='pending'");
-
 // Ensure is_verified column exists
-mysqli_query($conn, "ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_verified TINYINT(1) DEFAULT 0");
+$result = mysqli_query($conn, "SHOW COLUMNS FROM customers LIKE 'is_verified'");
+if (mysqli_num_rows($result) == 0) {
+    mysqli_query($conn, "ALTER TABLE customers ADD COLUMN is_verified TINYINT(1) DEFAULT 0");
+}
 
 // Ensure expected_return_date is DATETIME
 $rental_date_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'expected_return_date'");
@@ -75,6 +100,9 @@ $current_page = $_GET['page'] ?? 'admin_master';
 if (isset($_GET['verify_owner'])) {
     $target_id = (int)$_GET['verify_owner'];
     mysqli_query($conn, "UPDATE owners SET status='active' WHERE ownerid=$target_id");
+    // Use correct relative path for notification link
+    $owner_link = './dashboard.php?page=verify_owners&highlight_owner=' . $target_id;
+    create_notification($conn, null, 'admin', 'Owner ID #' . $target_id . ' has been verified. <a href=\'' . $owner_link . '\'>View Owner</a>', $owner_link);
     header("Location: ?page=verify_owners");
     exit();
 }
@@ -110,7 +138,7 @@ if (isset($_GET['reject_customer'])) {
 
 // Global Stats for Master Dashboard (Aggregated across ALL owners)
 $master_stats_res = mysqli_query($conn, "SELECT 
-    (SELECT COUNT(*) FROM owners WHERE role='owner') as total_owners,
+    (SELECT COUNT(*) FROM owners WHERE role='Owner') as total_owners,
     (SELECT COUNT(*) FROM bikes) as total_fleet,
     (SELECT COUNT(*) FROM rentals WHERE status != 'Pending') as total_bookings,
     (SELECT SUM(amount_collected) FROM rentals WHERE status != 'Pending') as platform_revenue,
@@ -207,7 +235,12 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
-        <div class="sidebar-header"><i class="fa-solid fa-shield-halved"></i><span>MatiMoto</span></div>
+        <div class="sidebar-header">
+            <div style="width:32px; height:32px; border-radius:8px; background:var(--primary); display:flex; align-items:center; justify-content:center;">
+                <svg class="w-5 h-5" style="width:20px; height:20px; color:#fff;" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </div>
+            <span style="font-size:1.25rem; font-weight:700; color:#fff; margin-left:8px; letter-spacing:1px;">MatiMotoRental</span>
+        </div>
         <ul class="sidebar-menu">
             <div class="sidebar-label">Admin Portal</div>
             <li class="<?= $current_page == 'admin_master' ? 'active' : '' ?>"><a href="?page=admin_master"><i class="fa-solid fa-chart-line"></i><span>Master Dashboard</span></a></li>
@@ -314,10 +347,13 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                     <?php 
                     break;
 
+
                 case 'verify_owners': 
                     // -------------------------------------------------------------------
                     // OWNER VERIFICATION: OVERSEE USERS
                     // -------------------------------------------------------------------
+                    // Get highlight_owner from URL if present
+                    $highlight_owner = isset($_GET['highlight_owner']) ? (int)$_GET['highlight_owner'] : null;
                     ?>
                     <div style="margin-bottom: 35px;">
                         <h1>Verify Platform Users</h1>
@@ -326,28 +362,48 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
 
                     <div class="card">
                         <table>
-                            <thead><tr><th>User Detail</th><th>Username</th><th>Join Date</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
+                            <thead><tr><th>User Detail</th><th>Username</th><th>Join Date</th><th>Status</th><th style="text-align:center">Action</th></tr></thead>
                             <tbody>
                                 <?php
                                 $owners_res = mysqli_query($conn, "SELECT * FROM owners WHERE role='owner' ORDER BY ownerid DESC");
-                                while($row = mysqli_fetch_assoc($owners_res)): ?>
-                                    <tr>
+                                while($row = mysqli_fetch_assoc($owners_res)):
+                                    // Highlight row if ownerid matches highlight_owner
+                                    $row_highlight = ($highlight_owner && $row['ownerid'] == $highlight_owner) ? 'background: #fef9c3; animation: highlightRow 2s;' : '';
+                                ?>
+                                    <tr<?= $row_highlight ? ' style="'.$row_highlight.'" id="highlighted-owner"' : '' ?>>
                                         <td><strong><?= $row['fullname'] ?></strong></td>
                                         <td><code><?= $row['shopname'] ?></code></td>
                                         <td>Joined Dec 2025</td>
                                         <td><span class="badge badge-<?= strtolower($row['status']) ?>"><?= $row['status'] ?></span></td>
-                                        <td style="text-align:right">
-                                            <button class="btn btn-outline" onclick='openModal("owner", <?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, "UTF-8"); ?>)'><i class="fa-solid fa-eye"></i> View</button>
-                                            <?php if ($row['status'] == 'pending'): ?>
-                                                <a href="?verify_owner=<?= $row['ownerid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Verify</a>
-                                            <?php endif; ?>
-                                            <button class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-ban"></i> Suspend</button>
+                                        <td style="text-align:center;">
+                                            <div style="display: flex; flex-direction: row; gap: 8px; justify-content: center; align-items: center;">
+                                                <button class="btn btn-outline" onclick='openModal("owner", <?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, "UTF-8"); ?>)'><i class="fa-solid fa-eye"></i> View</button>
+                                                <?php if ($row['status'] == 'pending'): ?>
+                                                    <a href="?verify_owner=<?= $row['ownerid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Verify</a>
+                                                <?php endif; ?>
+                                                <button class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-ban"></i> Suspend</button>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>
                         </table>
                     </div>
+                    <style>
+                    @keyframes highlightRow {
+                        0% { background: #fef08a; }
+                        100% { background: #fef9c3; }
+                    }
+                    </style>
+                    <script>
+                    // Scroll to highlighted owner row if present
+                    window.addEventListener('DOMContentLoaded', function() {
+                        var row = document.getElementById('highlighted-owner');
+                        if(row) {
+                            row.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        }
+                    });
+                    </script>
                     <?php 
                     break;
 
@@ -601,12 +657,22 @@ function include_logic_fleet($conn) { ?>
         
         if (type === 'owner') {
             title.innerText = 'Owner Details';
+            let actionBtns = '';
+            if (data.status && data.status.toLowerCase() === 'pending') {
+                actionBtns = `
+                    <div style="display:flex; gap:12px; justify-content:center; margin-top:18px;">
+                        <button class='btn btn-outline' type='button' onclick='closeModal()'><i class="fa-solid fa-arrow-left"></i> Cancel</button>
+                        <a href='?verify_owner=${data.ownerid}' class='btn btn-success'><i class="fa-solid fa-check"></i> Approve</a>
+                    </div>
+                `;
+            }
             body.innerHTML = `
                 <p><strong>Full Name:</strong> <span>${data.fullname}</span></p>
                 <p><strong>Shop Name:</strong> <span>${data.shopname}</span></p>
                 <p><strong>Email:</strong> <span>${data.email}</span></p>
-                <p><strong>Status:</strong> <span style="text-transform:capitalize">${data.status}</span></p>
+                <p><strong>Status:</strong> <span style=\"text-transform:capitalize\">${data.status}</span></p>
                 <p><strong>Joined:</strong> <span>${data.created_at}</span></p>
+                ${actionBtns}
             `;
         } else if (type === 'rental') {
             title.innerText = 'Rental Details';

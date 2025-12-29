@@ -76,7 +76,7 @@ $owner_shopname = $owner_details['shopname'];
             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
                 <i class="fa-solid fa-motorcycle text-white text-lg"></i>
             </div>
-            <span class="hidden lg:block ml-3 font-black text-xl tracking-tight">Moto<span class="text-accent">Rent</span></span>
+            <span class="hidden lg:block ml-3 font-black text-xl tracking-tight">MatiMotoRental</span>
         </div>
 
         <ul class="flex-1 py-8 space-y-2 px-3 overflow-y-auto">

@@ -131,7 +131,7 @@ unset($_SESSION['error'], $_SESSION['success']);
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
                 </div>
-                <span class="text-2xl font-bold text-white tracking-tight uppercase">Mati<span class="text-accent">Rentals</span></span>
+                <span class="text-2xl font-bold text-white tracking-tight">MatiMotoRental</span>
             </div>
 
             <div class="z-10 text-white max-w-lg">

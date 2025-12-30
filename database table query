@@ -19,21 +19,25 @@ USE moto_rental_db;
     INDEX idx_email (email),
     INDEX idx_last_login (last_login)
 ) ENGINE=InnoDB;,
-    CREATE TABLE IF NOT EXISTS owners (
-    ownerid INT AUTO_INCREMENT PRIMARY KEY,
-    fullname VARCHAR(255) NOT NULL,
-    shopname VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    hashedpassword VARCHAR(255) NOT NULL,
-    role ENUM('owner') DEFAULT 'owner',
-    status ENUM('active', 'disabled', 'pending') DEFAULT 'pending',
-    last_activity DATETIME NULL DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    
-    INDEX idx_email (email),
-    INDEX idx_status (status),
-    INDEX idx_last_activity (last_activity)
-) ENGINE=InnoDB;,
+CREATE TABLE IF NOT EXISTS owners (
+     ownerid INT AUTO_INCREMENT PRIMARY KEY,
+     fullname VARCHAR(255) NOT NULL,
+     shopname VARCHAR(255) NOT NULL,
+     location VARCHAR(255) NOT NULL,
+     email VARCHAR(255) UNIQUE NOT NULL,
+     phone_number VARCHAR(20),
+     hashedpassword VARCHAR(255) NOT NULL,
+    business_permit VARCHAR(255) DEFAULT NULL,
+    valid_id VARCHAR(255) DEFAULT NULL,
+    barangay_clearance VARCHAR(255) DEFAULT NULL,
+     role ENUM('owner') DEFAULT 'owner',
+     status ENUM('pending', 'active', 'disabled') DEFAULT 'pending',
+     last_activity DATETIME NULL DEFAULT NULL,
+     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+     INDEX idx_email (email),
+     INDEX idx_status (status),
+     INDEX idx_last_activity (last_activity)
+ ) ENGINE=InnoDB;
     CREATE TABLE IF NOT EXISTS bikes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     owner_id INT NOT NULL,

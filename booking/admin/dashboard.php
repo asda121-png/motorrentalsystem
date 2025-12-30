@@ -112,28 +112,37 @@ if (isset($_GET['verify_owner'])) {
 // Handle Customer Verification
 if (isset($_GET['verify_customer'])) {
     $target_id = (int)$_GET['verify_customer'];
-    
-    // Check for required documents before verifying
-    $check_docs = mysqli_query($conn, "SELECT profile_image, drivers_license_image, valid_id_image, phone_number FROM customers WHERE userid=$target_id");
+    $check_docs = mysqli_query($conn, "SELECT email, fullname FROM customers WHERE userid=$target_id");
     $doc_row = mysqli_fetch_assoc($check_docs);
-    if (empty($doc_row['profile_image']) || empty($doc_row['drivers_license_image']) || empty($doc_row['valid_id_image']) || empty($doc_row['phone_number'])) {
-        header("Location: ?page=verify_customers&error=incomplete");
-        exit();
-    }
-
     mysqli_query($conn, "UPDATE customers SET status='active', is_verified=1 WHERE userid=$target_id");
-    
-    // Notify customer
+    // Notify customer in-app
     create_notification($conn, $target_id, 'customer', 'Congratulations! Your account has been verified.', 'profile.php');
-
+    // Notify customer by email
+    require_once __DIR__ . '/../smtp_mailer.php';
+    $to = $doc_row['email'];
+    $subject = 'Your Account Has Been Approved';
+    $message_body = '<p>Dear ' . htmlspecialchars($doc_row['fullname']) . ',</p>'
+        . '<p>Congratulations! Your account at Mati City Moto Rentals has been <b>approved</b> and is now active. You may now log in and start booking motorcycles.</p>'
+        . '<p>Thank you for registering!</p>';
+    send_gmail($to, $subject, $message_body);
     header("Location: ?page=verify_customers");
     exit();
 }
 
 if (isset($_GET['reject_customer'])) {
     $target_id = (int)$_GET['reject_customer'];
-    // For security, we delete rejected accounts.
-    mysqli_query($conn, "DELETE FROM customers WHERE userid=$target_id");
+    // Set status to disabled and notify
+    $check = mysqli_query($conn, "SELECT email, fullname FROM customers WHERE userid=$target_id");
+    $row = mysqli_fetch_assoc($check);
+    mysqli_query($conn, "UPDATE customers SET status='disabled', is_verified=0 WHERE userid=$target_id");
+    create_notification($conn, $target_id, 'customer', 'We regret to inform you that your account has been rejected. Please contact support for more information.', 'profile.php');
+    require_once __DIR__ . '/../smtp_mailer.php';
+    $to = $row['email'];
+    $subject = 'Your Account Has Been Rejected';
+    $message_body = '<p>Dear ' . htmlspecialchars($row['fullname']) . ',</p>'
+        . '<p>We regret to inform you that your account at Mati City Moto Rentals has been <b>rejected</b>. If you believe this is a mistake or wish to appeal, please contact our support team.</p>'
+        . '<p>Thank you for your interest.</p>';
+    send_gmail($to, $subject, $message_body);
     header("Location: ?page=verify_customers");
     exit();
 }
@@ -369,26 +378,78 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                     // -------------------------------------------------------------------
                     // Get highlight_owner from URL if present
                     $highlight_owner = isset($_GET['highlight_owner']) ? (int)$_GET['highlight_owner'] : null;
+                    $search_query = isset($_GET['owner_search']) ? trim($_GET['owner_search']) : '';
                     ?>
-                    <div style="margin-bottom: 35px;">
-                        <h1>Verify Platform Users</h1>
-                        <p style="color: var(--text-muted);">Approve or suspend motorcycle owners operating in Mati City.</p>
+                    <style>
+                        /* Make only the placeholder text smaller for the owner search input */
+                        input[name="owner_search"]::placeholder {
+                            font-size: 0.95em;
+                            opacity: 0.85;
+                        }
+                    </style>
+                    <div style="margin-bottom: 35px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+                        <div>
+                            <h1>Verify Platform Users</h1>
+                            <p style="color: var(--text-muted);">Approve or suspend motorcycle owners operating in Mati City.</p>
+                        </div>
+                        <form method="get" style="margin-top:0; display:flex; gap:10px; max-width:400px; min-width:260px;">
+                            <input type="hidden" name="page" value="verify_owners">
+                            <input type="text" name="owner_search" value="<?= htmlspecialchars($search_query) ?>" placeholder="Search by Name or Email" style="flex:1; padding:10px 14px; border-radius:8px; border:1.2px solid #e2e8f0; font-size:1.1rem; min-width:220px; max-width:420px;">
+                            <button type="submit" class="btn btn-primary"><i class="fa fa-search"></i> Search</button>
+                        </form>
                     </div>
 
                     <div class="card">
                         <table>
-                            <thead><tr><th>User Detail</th><th>Username</th><th>Join Date</th><th>Status</th><th style="text-align:center">Action</th></tr></thead>
+                            <thead><tr><th>Owner Name</th><th>Email</th><th>Business Name</th><th style="text-align:center">Documents</th><th>Status</th><th style="text-align:center">Action</th></tr></thead>
                             <tbody>
                                 <?php
-                                $owners_res = mysqli_query($conn, "SELECT * FROM owners WHERE role='owner' ORDER BY ownerid DESC");
+                                $owners_sql = "SELECT * FROM owners WHERE role='owner'";
+                                if ($search_query !== '') {
+                                    $safe = mysqli_real_escape_string($conn, $search_query);
+                                    if (is_numeric($search_query)) {
+                                        $owners_sql .= " AND ownerid = '$safe'";
+                                    } else {
+                                        $firstChar = mysqli_real_escape_string($conn, mb_substr($search_query, 0, 1));
+                                        $owners_sql .= " AND (fullname LIKE '%$safe%' OR shopname LIKE '%$safe%' OR email LIKE '%$safe%'"
+                                            . " OR fullname LIKE '$firstChar%' OR shopname LIKE '$firstChar%' OR email LIKE '$firstChar%')";
+                                    }
+                                }
+                                $owners_sql .= " ORDER BY ownerid DESC";
+                                $owners_res = mysqli_query($conn, $owners_sql);
                                 while($row = mysqli_fetch_assoc($owners_res)):
                                     // Highlight row if ownerid matches highlight_owner
                                     $row_highlight = ($highlight_owner && $row['ownerid'] == $highlight_owner) ? 'background: #fef9c3; animation: highlightRow 2s;' : '';
                                 ?>
                                     <tr<?= $row_highlight ? ' style="'.$row_highlight.'" id="highlighted-owner"' : '' ?>>
+                                        <!-- Owner ID removed -->
                                         <td><strong><?= $row['fullname'] ?></strong></td>
+                                        <td><code><?= htmlspecialchars($row['email']) ?></code></td>
                                         <td><code><?= $row['shopname'] ?></code></td>
-                                        <td>Joined Dec 2025</td>
+                                        <td>
+                                            <?php
+                                            function getOwnerDocLink($filename) {
+                                                if (!$filename) return '';
+                                                $file = basename($filename);
+                                                return "../assets/owner_uploads/" . $file;
+                                            }
+                                            ?>
+                                            <?php if (!empty($row['business_permit'])): ?>
+                                                <a href="<?= getOwnerDocLink($row['business_permit']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['business_permit']) ?>">Permit</a>
+                                            <?php else: ?>
+                                                <span class="badge" style="background: #fee2e2; color: #991b1b;">No Permit</span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($row['valid_id'])): ?>
+                                                <a href="<?= getOwnerDocLink($row['valid_id']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['valid_id']) ?>">Valid ID</a>
+                                            <?php else: ?>
+                                                <span class="badge" style="background: #fee2e2; color: #991b1b;">No ID</span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($row['barangay_clearance'])): ?>
+                                                <a href="<?= getOwnerDocLink($row['barangay_clearance']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['barangay_clearance']) ?>">Barangay Clearance</a>
+                                            <?php else: ?>
+                                                <span class="badge" style="background: #fee2e2; color: #991b1b;">No Brgy Clearance</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><span class="badge badge-<?= strtolower($row['status']) ?>"><?= $row['status'] ?></span></td>
                                         <td style="text-align:center;">
                                             <div style="display: flex; flex-direction: row; gap: 8px; justify-content: center; align-items: center;">
@@ -424,9 +485,24 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
 
                 case 'verify_customers':
                     ?>
-                    <div style="margin-bottom: 35px;">
-                        <h1>Manage Customer Accounts</h1>
-                        <p style="color: var(--text-muted);">View and verify customer identifications.</p>
+
+                    <style>
+                        /* Make only the placeholder text smaller for the customer search input */
+                        input[name="customer_search"]::placeholder {
+                            font-size: 0.95em;
+                            opacity: 0.85;
+                        }
+                    </style>
+                    <div style="margin-bottom: 35px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+                        <div>
+                            <h1>Manage Customer Accounts</h1>
+                            <p style="color: var(--text-muted);">View and verify customer identifications.</p>
+                        </div>
+                        <form method="get" style="margin-top:0; display:flex; gap:10px; max-width:400px; min-width:260px;">
+                            <input type="hidden" name="page" value="verify_customers">
+                            <input type="text" name="customer_search" value="<?= isset($_GET['customer_search']) ? htmlspecialchars($_GET['customer_search']) : '' ?>" placeholder="Search by Name or Email" style="flex:1; padding:10px 14px; border-radius:8px; border:1.2px solid #e2e8f0; font-size:1.1rem; min-width:220px; max-width:420px;">
+                            <button type="submit" class="btn btn-primary"><i class="fa fa-search"></i> Search</button>
+                        </form>
                     </div>
 
                     <?php if(isset($_GET['error']) && $_GET['error'] == 'incomplete'): ?>
@@ -437,10 +513,21 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
 
                     <div class="card">
                         <table>
-                            <thead><tr><th>Customer Name</th><th>Email</th><th>Status</th><th>Documents</th><th style="text-align:center">Action</th></tr></thead>
+                            <thead><tr><th>Customer Name</th><th>Email</th><th>Documents</th><th>Status</th><th style="text-align:center">Action</th></tr></thead>
                             <tbody>
                                 <?php
-                                $customers_res = mysqli_query($conn, "SELECT * FROM customers WHERE role='customer' ORDER BY is_verified ASC, userid DESC");
+                                $customer_search = isset($_GET['customer_search']) ? trim($_GET['customer_search']) : '';
+                                $customers_sql = "SELECT * FROM customers WHERE role='customer'";
+                                if ($customer_search !== '') {
+                                    $safe = mysqli_real_escape_string($conn, $customer_search);
+                                    if (is_numeric($customer_search)) {
+                                        $customers_sql .= " AND userid = '$safe'";
+                                    } else {
+                                        $customers_sql .= " AND (fullname LIKE '%$safe%' OR email LIKE '%$safe%')";
+                                    }
+                                }
+                                $customers_sql .= " ORDER BY is_verified ASC, userid DESC";
+                                $customers_res = mysqli_query($conn, $customers_sql);
                                 if (mysqli_num_rows($customers_res) > 0) {
                                     while($row = mysqli_fetch_assoc($customers_res)): ?>
                                         <tr>
@@ -458,13 +545,6 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                             </td>
                                             <td><code><?= htmlspecialchars($row['email']) ?></code></td>
                                             <td>
-                                                <?php if($row['is_verified']): ?>
-                                                    <span class="badge badge-verified">Verified</span>
-                                                <?php else: ?>
-                                                    <span class="badge badge-pending">Pending</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
                                                 <?php if (!empty($row['drivers_license_image'])): ?>
                                                     <a href="../<?= htmlspecialchars($row['drivers_license_image']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;">License</a>
                                                 <?php else: ?>
@@ -477,18 +557,19 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                                     <span class="badge" style="background: #fee2e2; color: #991b1b;">No ID</span>
                                                 <?php endif; ?>
                                             </td>
+                                            <td>
+                                                <?php if($row['is_verified']): ?>
+                                                    <span class="badge badge-verified">Verified</span>
+                                                <?php else: ?>
+                                                    <span class="badge badge-pending">Pending</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td style="text-align:center">
                                                 <button class="btn btn-outline" onclick='openModal("customer", <?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, "UTF-8"); ?>)'><i class="fa-solid fa-eye"></i> View</button>
-                                                <?php if(!$row['is_verified']): ?>
-                                                    <?php 
-                                                    $is_complete = !empty($row['profile_image']) && !empty($row['drivers_license_image']) && !empty($row['valid_id_image']) && !empty($row['phone_number']);
-                                                    if ($is_complete): ?>
-                                                        <a href="?verify_customer=<?= $row['userid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Approve</a>
-                                                    <?php else: ?>
-                                                        <button class="btn btn-outline" style="opacity:0.5; cursor:not-allowed;" title="Missing Documents (Profile, ID, License, or Phone)"><i class="fa-solid fa-check"></i> Approve</button>
-                                                    <?php endif; ?>
+                                                <?php if (!$row['is_verified']): ?>
+                                                    <a href="?verify_customer=<?= $row['userid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Approve</a>
                                                 <?php endif; ?>
-                                                <a href="?reject_customer=<?= $row['userid'] ?>" onclick="return confirm('Are you sure you want to delete this customer?')" class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-trash"></i> Delete</a>
+                                                <a href="?reject_customer=<?= $row['userid'] ?>" onclick="return confirm('Are you sure you want to reject this customer?')" class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-xmark"></i> Reject</a>
                                             </td>
                                         </tr>
                                     <?php endwhile;

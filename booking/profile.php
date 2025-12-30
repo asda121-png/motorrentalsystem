@@ -128,12 +128,9 @@ $cust_notif_res = mysqli_query($conn, $cust_notif_query);
 
     <!-- Main Content -->
     <div class="max-w-3xl mx-auto px-4 py-12">
-        <div class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100">
+        <div class="bg-gradient-to-br from-[#f0f4f8] via-[#e6f7fa] to-[#f8fafc] rounded-[2.5rem] p-10 shadow-xl border-2 border-primary/10">
             <div class="flex items-center justify-between mb-8">
                 <h1 class="text-3xl font-black text-primary tracking-tight">My Profile</h1>
-                <span class="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold uppercase tracking-widest border border-emerald-100">
-                    <?php echo htmlspecialchars($user['status']); ?> Member
-                </span>
             </div>
 
             <div class="flex flex-col md:flex-row gap-10">
@@ -157,22 +154,22 @@ $cust_notif_res = mysqli_query($conn, $cust_notif_query);
                     <div class="grid grid-cols-1 gap-6">
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Full Name</label>
-                            <div class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold">
+                            <div class="w-full px-6 py-4 rounded-2xl bg-white/90 border-l-4 border-primary/30 shadow text-gray-700 font-bold">
                                 <?php echo htmlspecialchars($user['fullname']); ?>
                             </div>
                         </div>
 
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Email Address</label>
-                            <div class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold flex items-center justify-between">
+                            <div class="w-full px-6 py-4 rounded-2xl bg-white/90 border-l-4 border-primary/30 shadow text-gray-700 font-bold flex items-center justify-between">
                                 <span><?php echo htmlspecialchars($user['email']); ?></span>
                                 <i class="fa-solid fa-lock text-gray-300"></i>
                             </div>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Contact Number</label>
-                            <div class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold">
+                            <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Phone Number</label>
+                            <div class="w-full px-6 py-4 rounded-2xl bg-white/90 border-l-4 border-primary/30 shadow text-gray-700 font-bold">
                                 <?php echo htmlspecialchars($user['phone_number'] ?? 'Not set'); ?>
                             </div>
                         </div>
@@ -180,7 +177,7 @@ $cust_notif_res = mysqli_query($conn, $cust_notif_query);
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="space-y-2">
                                 <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Driver's License</label>
-                                <div class="h-40 rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center relative group">
+                                <div class="h-40 rounded-2xl bg-gradient-to-br from-[#f0f4f8] to-[#e6f7fa] border-2 border-primary/10 overflow-hidden flex items-center justify-center relative group">
                                     <?php if(!empty($user['drivers_license_image'])): ?>
                                         <img src="<?php echo htmlspecialchars($user['drivers_license_image']); ?>" class="w-full h-full object-cover">
                                     <?php else: ?>
@@ -190,7 +187,7 @@ $cust_notif_res = mysqli_query($conn, $cust_notif_query);
                             </div>
                             <div class="space-y-2">
                                 <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Valid ID</label>
-                                <div class="h-40 rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center relative group">
+                                <div class="h-40 rounded-2xl bg-gradient-to-br from-[#f0f4f8] to-[#e6f7fa] border-2 border-primary/10 overflow-hidden flex items-center justify-center relative group">
                                     <?php if(!empty($user['valid_id_image'])): ?>
                                         <img src="<?php echo htmlspecialchars($user['valid_id_image']); ?>" class="w-full h-full object-cover">
                                     <?php else: ?>

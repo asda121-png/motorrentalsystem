@@ -91,10 +91,10 @@ $owner_shopname = $owner_details['shopname'];
     <!-- Sidebar Navigation -->
     <aside class="w-20 lg:w-72 bg-dark text-white flex flex-col transition-all duration-300 z-50 flex-shrink-0">
         <div class="h-20 flex items-center justify-center lg:justify-start lg:px-8 border-b border-white/5">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-                <i class="fa-solid fa-motorcycle text-white text-lg"></i>
+            <div class="w-10 h-10 rounded bg-primary flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
             </div>
-            <span class="hidden lg:block ml-3 font-black text-xl tracking-tight">MatiMotoRental</span>
+            <span class="hidden lg:block ml-3 font-bold text-xl tracking-tight text-white">MatiMotoRental</span>
         </div>
 
         <ul class="flex-1 py-8 space-y-2 px-3 overflow-y-auto">

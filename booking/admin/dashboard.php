@@ -100,9 +100,11 @@ $current_page = $_GET['page'] ?? 'admin_master';
 if (isset($_GET['verify_owner'])) {
     $target_id = (int)$_GET['verify_owner'];
     mysqli_query($conn, "UPDATE owners SET status='active' WHERE ownerid=$target_id");
-    // Use correct relative path for notification link
+    require_once __DIR__ . '/../owner/owner_email_helper.php';
+    send_owner_status_email($target_id, 'active');
     $owner_link = './dashboard.php?page=verify_owners&highlight_owner=' . $target_id;
-    create_notification($conn, null, 'admin', 'Owner ID #' . $target_id . ' has been verified. <a href=\'' . $owner_link . '\'>View Owner</a>', $owner_link);
+    create_notification($conn, null, 'admin', 'Owner ID #' . $target_id . ' has been verified. <a href=\'" . $owner_link . "\'>View Owner</a>', $owner_link);
+    $_SESSION['owner_verified_success'] = true;
     header("Location: ?page=verify_owners");
     exit();
 }
@@ -133,6 +135,19 @@ if (isset($_GET['reject_customer'])) {
     // For security, we delete rejected accounts.
     mysqli_query($conn, "DELETE FROM customers WHERE userid=$target_id");
     header("Location: ?page=verify_customers");
+    exit();
+}
+
+// Handle Owner Suspension
+if (isset($_POST['suspend_owner']) && isset($_POST['owner_id']) && isset($_POST['suspend_reason'])) {
+    $target_id = (int)$_POST['owner_id'];
+    $reason = trim($_POST['suspend_reason']);
+    mysqli_query($conn, "UPDATE owners SET status='disabled' WHERE ownerid=$target_id");
+    require_once __DIR__ . '/../owner/owner_email_helper.php';
+    send_owner_status_email($target_id, 'disabled', $reason);
+    $owner_link = './dashboard.php?page=verify_owners&highlight_owner=' . $target_id;
+    create_notification($conn, null, 'admin', 'Owner ID #' . $target_id . ' has been suspended. <a href=\'' . $owner_link . '\'>View Owner</a>', $owner_link);
+    header("Location: ?page=verify_owners");
     exit();
 }
 
@@ -381,7 +396,7 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                                 <?php if ($row['status'] == 'pending'): ?>
                                                     <a href="?verify_owner=<?= $row['ownerid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Verify</a>
                                                 <?php endif; ?>
-                                                <button class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-ban"></i> Suspend</button>
+                                                <button class="btn btn-outline" style="color: #ef4444;" onclick="openSuspendModal(<?= $row['ownerid'] ?>, '<?= htmlspecialchars($row['fullname'], ENT_QUOTES) ?>')"><i class="fa-solid fa-ban"></i> Suspend</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -647,6 +662,27 @@ function include_logic_fleet($conn) { ?>
     </div>
 </div>
 
+<!-- Suspend Modal -->
+<div id="suspendModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Suspend Owner</h2>
+            <button onclick="closeSuspendModal()">&times;</button>
+        </div>
+        <form method="POST" action="">
+            <input type="hidden" name="owner_id" id="suspend_owner_id">
+            <div class="modal-body">
+                <p>Provide a reason for suspending <span id="suspend_owner_name"></span>:</p>
+                <textarea name="suspend_reason" id="suspend_reason" rows="3" required style="width:100%;"></textarea>
+            </div>
+            <div style="text-align:right; margin-top:15px;">
+                <button type="button" class="btn btn-outline" onclick="closeSuspendModal()">Cancel</button>
+                <button type="submit" name="suspend_owner" class="btn btn-primary">Suspend Owner</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function openModal(type, data) {
         const modal = document.getElementById('detailModal');
@@ -657,22 +693,50 @@ function include_logic_fleet($conn) { ?>
         
         if (type === 'owner') {
             title.innerText = 'Owner Details';
-            let actionBtns = '';
-            if (data.status && data.status.toLowerCase() === 'pending') {
-                actionBtns = `
-                    <div style="display:flex; gap:12px; justify-content:center; margin-top:18px; width:100%; margin-left:auto; margin-right:auto;">
-                        <button class='btn btn-outline' type='button' onclick='closeModal()'><i class=\"fa-solid fa-arrow-left\"></i> Cancel</button>
-                        <a href='?verify_owner=${data.ownerid}' class='btn btn-success'><i class=\"fa-solid fa-check\"></i> Approve</a>
-                    </div>
-                `;
+            let ownerProfileImg = data.profile_image ? `../${data.profile_image}` : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(data.fullname) + '&background=random';
+            function getFilename(path) {
+                if (!path) return '';
+                return path.split('\\').pop().split('/').pop();
             }
+            let permitFile = getFilename(data.business_permit);
+            let brgyFile = getFilename(data.barangay_clearance);
+            let validIdFile = getFilename(data.valid_id);
+
+            // Parse structured address fields if available
+            let province = data.province || 'Davao Oriental';
+            let city = data.city || 'Mati City';
+            let barangay = data.barangay || '';
+            let street = data.street_landmark || '';
+
+            // If only address/location string is available, try to split it
+            if ((!data.province || !data.city || !data.barangay) && data.location) {
+                let parts = data.location.split(',').map(x => x.trim());
+                province = parts[0] || province;
+                city = parts[1] || city;
+                barangay = parts[2] || '';
+                street = parts[3] || '';
+            }
+
             body.innerHTML = `
+                <div style="text-align:center; margin-bottom:20px;">
+                    <img src="${ownerProfileImg}" style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #e5e7eb;">
+                </div>
                 <p><strong>Full Name:</strong> <span>${data.fullname}</span></p>
                 <p><strong>Shop Name:</strong> <span>${data.shopname}</span></p>
                 <p><strong>Email:</strong> <span>${data.email}</span></p>
-                <p><strong>Status:</strong> <span style=\"text-transform:capitalize\">${data.status}</span></p>
-                <p><strong>Joined:</strong> <span>${data.created_at}</span></p>
-                ${actionBtns}
+                <p><strong>Phone:</strong> <span>${data.phone_number || 'N/A'}</span></p>
+                <p><strong>Province:</strong> <span>${province}</span></p>
+                <p><strong>City/Municipality:</strong> <span>${city}</span></p>
+                <p><strong>Barangay:</strong> <span>${barangay}</span></p>
+                <p><strong>Street/Landmark:</strong> <span>${street || 'N/A'}</span></p>
+                <p><strong>Status:</strong> <span style="text-transform:capitalize">${data.status}</span></p>
+                <p><strong>Registered:</strong> <span>${data.created_at}</span></p>
+                <hr style="margin:18px 0; border:0; border-top:1px solid #e2e8f0;">
+                <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
+                    ${permitFile ? `<a href="../assets/owner_uploads/${permitFile}" target="_blank" class="btn btn-outline" style="flex:1; min-width:120px; justify-content:center;"><i class="fa-solid fa-file-contract"></i> Business Permit</a>` : ''}
+                    ${brgyFile ? `<a href="../assets/owner_uploads/${brgyFile}" target="_blank" class="btn btn-outline" style="flex:1; min-width:120px; justify-content:center;"><i class="fa-solid fa-file-shield"></i> Barangay Clearance</a>` : ''}
+                    ${validIdFile ? `<a href="../assets/owner_uploads/${validIdFile}" target="_blank" class="btn btn-outline" style="flex:1; min-width:120px; justify-content:center;"><i class="fa-solid fa-address-card"></i> Valid ID</a>` : ''}
+                </div>
             `;
         } else if (type === 'rental') {
             title.innerText = 'Rental Details';
@@ -733,8 +797,25 @@ function include_logic_fleet($conn) { ?>
             closeModal();
         }
     }
-</script>
-<script>
+
+    function openSuspendModal(ownerId, ownerName) {
+        document.getElementById('suspend_owner_id').value = ownerId;
+        document.getElementById('suspend_owner_name').textContent = ownerName;
+        document.getElementById('suspend_reason').value = '';
+        document.getElementById('suspendModal').style.display = 'flex';
+    }
+    function closeSuspendModal() {
+        document.getElementById('suspendModal').style.display = 'none';
+    }
+
+    // Close on outside click
+    window.onclick = function(event) {
+        const modal = document.getElementById('suspendModal');
+        if (event.target == modal) {
+            closeSuspendModal();
+        }
+    }
+
     function toggleNotif(id) {
         const dropdown = document.getElementById(id);
         const isVisible = dropdown.style.display === 'block';
@@ -757,6 +838,13 @@ function include_logic_fleet($conn) { ?>
         if (!e.target.closest('.notification-dropdown') && !e.target.closest('button[onclick^="toggleNotif"]')) {
             document.querySelectorAll('.notification-dropdown').forEach(d => d.style.display = 'none');
         }
+    });
+
+    window.addEventListener('DOMContentLoaded', function() {
+        <?php if (!empty($_SESSION['owner_verified_success'])): ?>
+            alert('Owner verified successfully!');
+            <?php unset($_SESSION['owner_verified_success']); ?>
+        <?php endif; ?>
     });
 </script>
 

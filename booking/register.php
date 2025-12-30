@@ -63,15 +63,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
     if (isset($_SESSION['temp_user']) && $entered_otp == $_SESSION['temp_user']['otp']) {
         // OTP Match!
         $fullname = $_SESSION['temp_user']['fullname'];
+        $phone_number = $_SESSION['temp_user']['phone_number'] ?? '';
         $email = $_SESSION['temp_user']['email'];
         $hashedPassword = $_SESSION['temp_user']['password'];
 
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO customers (fullname, email, hashedpassword, status, is_verified)
-                VALUES (?, ?, ?, 'active', 0)
+                INSERT INTO customers (fullname, phone_number, email, hashedpassword, status, is_verified)
+                VALUES (?, ?, ?, ?, 'active', 0)
             ");
-            $stmt->execute([$fullname, $email, $hashedPassword]);
+            $stmt->execute([$fullname, $phone_number, $email, $hashedPassword]);
 
             // Notification
             $admin_message = "New customer '$fullname' registered and verified email.";
@@ -96,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
 // ==========================================
 elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $fullname = trim($_POST['fullname'] ?? '');
+    $phone_number = trim($_POST['phone_number'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
@@ -104,21 +106,26 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     if (empty($fullname)) {
         $errors['fullname'] = "Full name is required.";
     }
-    
+    if (empty($phone_number)) {
+        $errors['phone_number'] = "Phone number is required.";
+    } elseif (!preg_match('/^[0-9]{11}$/', $phone_number)) {
+        $errors['phone_number'] = "Phone number must be exactly 11 digits.";
+    }
     if (empty($email)) {
         $errors['email'] = "Email is required.";
-    } elseif (!preg_match("/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/", $email)) {
+    } elseif (!preg_match("/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/", $email)) {
         $errors['email'] = "Invalid format. Use formal format like Name@example.com";
     }
-
     if (empty($password)) {
         $errors['password'] = "Password is required.";
-    } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]{8,}$/", $password)) {
+    } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d\\W]{8,}$/", $password)) {
         $errors['password'] = "Must be 8+ chars with 1 uppercase, 1 lowercase, & 1 number.";
     }
-
     if ($password !== $confirm_password) {
         $errors['confirm_password'] = "Passwords do not match.";
+    }
+    if (!isset($_POST['terms'])) {
+        $errors['terms'] = "You must agree to the Terms and Conditions.";
     }
 
     // Database Checks if no format errors
@@ -129,24 +136,24 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         if ($stmtName->rowCount() > 0) {
             $errors['fullname'] = "This name is already registered.";
         }
-
         // Check if Email exists
         $stmtEmail = $pdo->prepare("SELECT userid FROM customers WHERE email = ?");
         $stmtEmail->execute([$email]);
         if ($stmtEmail->rowCount() > 0) {
             $errors['email'] = "This email is already registered.";
         }
-
         // Proceed if still no errors
         if (empty($errors)) {
             $otp = rand(100000, 999999);
             $subject = "Email Verification - Mati City Moto Rentals";
             $body = "<h1>Verify your Email</h1><p>Your verification code is: <strong style='font-size:24px;'>$otp</strong></p><p>Please enter this code to complete your registration.</p>";
-            
             if (send_gmail($email, $subject, $body)) {
                 $_SESSION['temp_user'] = [
-                    'fullname' => $fullname, 'email' => $email, 
-                    'password' => password_hash($password, PASSWORD_DEFAULT), 'otp' => $otp
+                    'fullname' => $fullname,
+                    'phone_number' => $phone_number,
+                    'email' => $email,
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                    'otp' => $otp
                 ];
                 header("Location: register.php");
                 exit();
@@ -270,7 +277,7 @@ unset($_SESSION['global_error'], $_SESSION['success']);
 
                 <?php if (isset($_SESSION['temp_user'])): ?>
                     <form action="register.php" method="POST" enctype="multipart/form-data" class="space-y-5">
-                        <h3 class="text-lg font-bold text-primary mb-2">Personal Information</h3>
+                        <h3 class="text-lg font-bold text-primary mb-2">Email Verification</h3>
                         <div class="text-center mb-4">
                             <p class="text-sm text-gray-500">We sent a 6-digit code to <br><strong><?php echo htmlspecialchars($_SESSION['temp_user']['email']); ?></strong></p>
                         </div>
@@ -314,6 +321,14 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                         </div>
 
                         <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Phone Number</label>
+                            <input type="text" name="phone_number" maxlength="11" pattern="[0-9]{11}" value="<?php echo htmlspecialchars($_POST['phone_number'] ?? ''); ?>" placeholder="09XXXXXXXXX" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['phone_number']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
+                            <?php if (isset($errors['phone_number'])): ?>
+                                <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['phone_number']; ?></p>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="space-y-1.5">
                             <div class="flex justify-between items-center ml-1">
                                 <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Password</label>
                                 <span id="password-strength" class="text-[10px] font-bold uppercase tracking-widest hidden"></span>
@@ -349,9 +364,31 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                             <?php endif; ?>
                         </div>
                         
+                        <div class="flex items-start gap-2 mt-2">
+                            <input type="checkbox" id="terms" name="terms" value="1" class="mt-1" required <?php if(isset($_POST['terms'])) echo 'checked'; ?>>
+                            <label for="terms" class="text-xs text-gray-700 select-none">I agree to the <a href="#" onclick="showTermsModal();return false;" class="text-primary underline font-bold">Customer Terms and Conditions</a> of Mati City Moto Rentals.</label>
+                        </div>
+                        <!-- Terms Modal -->
+                        <div id="termsModal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.45);">
+                            <div style="max-width:800px; width:95vw; height:80vh; background:#fff; border-radius:18px; margin:40px auto; position:relative; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden;">
+                                <button onclick="closeTermsModal()" style="position:absolute; top:10px; right:18px; background:none; border:none; font-size:2rem; color:#005461; cursor:pointer; z-index:10;">&times;</button>
+                                <iframe src="terms_customer.html" style="width:100%; height:100%; border:none; border-radius:18px;"></iframe>
+                            </div>
+                        </div>
+                        <?php if (isset($errors['terms'])): ?>
+                            <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['terms']; ?></p>
+                        <?php endif; ?>
                         <button type="submit" name="register" class="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-xl shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98] mt-4">
                             Send Verification Code
                         </button>
+                    <script>
+                    function showTermsModal() {
+                        document.getElementById('termsModal').style.display = 'block';
+                    }
+                    function closeTermsModal() {
+                        document.getElementById('termsModal').style.display = 'none';
+                    }
+                    </script>
                     </form>
                 <?php endif; ?>
 

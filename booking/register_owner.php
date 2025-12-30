@@ -63,16 +63,84 @@ if (isset($_GET['action']) && $_GET['action'] === 'resend') {
 // Step 1: Business Info
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step1'])) {
     $shopname = trim($_POST['shopname'] ?? '');
-    $location = trim($_POST['location'] ?? '');
+    $province = trim($_POST['province'] ?? 'Davao Oriental');
+    $city = trim($_POST['city'] ?? 'Mati City');
+    $barangay = trim($_POST['barangay'] ?? '');
+    $street_landmark = trim($_POST['street_landmark'] ?? '');
+    // File upload validation
+    $permitPath = '';
+    $validIdPath = '';
+    $barangayClearancePath = '';
+    $uploadDir = __DIR__ . '/assets/owner_uploads/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+    // Business Permit
+    if (!isset($_FILES['business_permit']) || $_FILES['business_permit']['error'] !== UPLOAD_ERR_OK) {
+        $errors['business_permit'] = "Business permit is required.";
+    } else {
+        $permitInfo = pathinfo($_FILES['business_permit']['name']);
+        $permitExt = strtolower($permitInfo['extension']);
+        $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+        if (!in_array($permitExt, $allowed)) {
+            $errors['business_permit'] = "Invalid file type for business permit.";
+        } else {
+            $permitPath = $uploadDir . uniqid('permit_') . '.' . $permitExt;
+            if (!move_uploaded_file($_FILES['business_permit']['tmp_name'], $permitPath)) {
+                $errors['business_permit'] = "Failed to upload business permit.";
+            }
+        }
+    }
+    // Valid ID
+    if (!isset($_FILES['valid_id']) || $_FILES['valid_id']['error'] !== UPLOAD_ERR_OK) {
+        $errors['valid_id'] = "Valid ID is required.";
+    } else {
+        $idInfo = pathinfo($_FILES['valid_id']['name']);
+        $idExt = strtolower($idInfo['extension']);
+        $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+        if (!in_array($idExt, $allowed)) {
+            $errors['valid_id'] = "Invalid file type for valid ID.";
+        } else {
+            $validIdPath = $uploadDir . uniqid('validid_') . '.' . $idExt;
+            if (!move_uploaded_file($_FILES['valid_id']['tmp_name'], $validIdPath)) {
+                $errors['valid_id'] = "Failed to upload valid ID.";
+            }
+        }
+    }
+    // Barangay Clearance
+    if (!isset($_FILES['barangay_clearance']) || $_FILES['barangay_clearance']['error'] !== UPLOAD_ERR_OK) {
+        $errors['barangay_clearance'] = "Barangay clearance is required.";
+    } else {
+        $brgyInfo = pathinfo($_FILES['barangay_clearance']['name']);
+        $brgyExt = strtolower($brgyInfo['extension']);
+        $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+        if (!in_array($brgyExt, $allowed)) {
+            $errors['barangay_clearance'] = "Invalid file type for barangay clearance.";
+        } else {
+            $barangayClearancePath = $uploadDir . uniqid('brgy_') . '.' . $brgyExt;
+            if (!move_uploaded_file($_FILES['barangay_clearance']['tmp_name'], $barangayClearancePath)) {
+                $errors['barangay_clearance'] = "Failed to upload barangay clearance.";
+            }
+        }
+    }
     if (empty($shopname)) {
         $errors['shopname'] = "Shop/Business name is required.";
     }
-    if (empty($location)) {
-        $errors['location'] = "Location is required.";
+    if (empty($barangay)) {
+        $errors['barangay'] = "Barangay is required.";
+    }
+    if (!isset($_POST['terms'])) {
+        $errors['terms'] = "You must agree to the Terms and Conditions.";
     }
     if (empty($errors)) {
         $_SESSION['owner_reg_shopname'] = $shopname;
-        $_SESSION['owner_reg_location'] = $location;
+        $_SESSION['owner_reg_province'] = $province;
+        $_SESSION['owner_reg_city'] = $city;
+        $_SESSION['owner_reg_barangay'] = $barangay;
+        $_SESSION['owner_reg_street_landmark'] = $street_landmark;
+        $_SESSION['owner_reg_permit'] = $permitPath;
+        $_SESSION['owner_reg_validid'] = $validIdPath;
+        $_SESSION['owner_reg_barangay_clearance'] = $barangayClearancePath;
         $_SESSION['owner_reg_step'] = 2;
     }
 }
@@ -80,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step1'])) {
 // Step 2: Personal Info
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step2'])) {
     $fullname = trim($_POST['fullname'] ?? '');
+    $phone_number = trim($_POST['phone_number'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
@@ -87,6 +156,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step2'])) {
     // Validation
     if (empty($fullname)) {
         $errors['fullname'] = "Full name is required.";
+    }
+    if (empty($phone_number)) {
+        $errors['phone_number'] = "Phone number is required.";
+    } elseif (!preg_match('/^[0-9]{11}$/', $phone_number)) {
+        $errors['phone_number'] = "Phone number must be exactly 11 digits.";
     }
     if (empty($email)) {
         $errors['email'] = "Email is required.";
@@ -118,6 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step2'])) {
 
     if (empty($errors)) {
         $_SESSION['owner_reg_fullname'] = $fullname;
+        $_SESSION['owner_reg_phone_number'] = $phone_number;
         $_SESSION['owner_reg_email'] = $email;
         $_SESSION['owner_reg_password'] = $password;
         // Generate and send OTP when moving to step 3
@@ -140,37 +215,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step3'])) {
     // Register if all good
     if (empty($errors)) {
         $fullname = $_SESSION['owner_reg_fullname'];
+        $phone_number = $_SESSION['owner_reg_phone_number'] ?? '';
         $email = $_SESSION['owner_reg_email'];
         $password = $_SESSION['owner_reg_password'];
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        $permitPath = $_SESSION['owner_reg_permit'] ?? '';
+        $validIdPath = $_SESSION['owner_reg_validid'] ?? '';
+        $barangayClearancePath = $_SESSION['owner_reg_barangay_clearance'] ?? '';
+        $province = $_SESSION['owner_reg_province'] ?? 'Davao Oriental';
+        $city = $_SESSION['owner_reg_city'] ?? 'Mati City';
+        $barangay = $_SESSION['owner_reg_barangay'] ?? '';
+        $street_landmark = $_SESSION['owner_reg_street_landmark'] ?? '';
+        $location = $province . ', ' . $city . ', ' . $barangay;
+        if (!empty($street_landmark)) {
+            $location .= ', ' . $street_landmark;
+        }
         try {
             $stmt = $pdo->prepare("
-                INSERT INTO owners (fullname, shopname, location, email, hashedpassword, role, status, created_at)
-                VALUES (?, ?, ?, ?, ?, 'owner', 'pending', NOW())
+                INSERT INTO owners (fullname, shopname, location, email, phone_number, hashedpassword, business_permit, valid_id, barangay_clearance, role, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'owner', 'pending', NOW())
             ");
             $stmt->execute([
                 $fullname,
                 $_SESSION['owner_reg_shopname'],
-                $_SESSION['owner_reg_location'],
+                $location,
                 $email,
-                $hashedPassword
+                $phone_number,
+                $hashedPassword,
+                $permitPath,
+                $validIdPath,
+                $barangayClearancePath
             ]);
             $owner_id = $pdo->lastInsertId();
             $admin_message = "New owner '$fullname' (" . $_SESSION['owner_reg_shopname'] . ") registered and needs verification.";
             $admin_link = 'admin/dashboard.php?page=verify_owners';
             $notif_stmt = $pdo->prepare("INSERT INTO notifications (user_type, message, link) VALUES ('admin', ?, ?)");
             $notif_stmt->execute([$admin_message, $admin_link]);
-            // Set session for login
-            $_SESSION['userid'] = $owner_id;
-            $_SESSION['role'] = 'owner';
             // Clear OTP and registration session vars
             unset($_SESSION['owner_reg_otp']);
-            unset($_SESSION['owner_reg_step'], $_SESSION['owner_reg_shopname'], $_SESSION['owner_reg_location'], $_SESSION['owner_reg_fullname'], $_SESSION['owner_reg_email'], $_SESSION['owner_reg_password']);
-            $_SESSION['success'] = "Registration successful! Your account is pending admin approval.";
-            header("Location: owner/dashboard.php");
+            unset(
+                $_SESSION['owner_reg_step'],
+                $_SESSION['owner_reg_shopname'],
+                $_SESSION['owner_reg_province'],
+                $_SESSION['owner_reg_city'],
+                $_SESSION['owner_reg_barangay'],
+                $_SESSION['owner_reg_street_landmark'],
+                $_SESSION['owner_reg_fullname'],
+                $_SESSION['owner_reg_email'],
+                $_SESSION['owner_reg_password'],
+                $_SESSION['owner_reg_permit'],
+                $_SESSION['owner_reg_validid'],
+                $_SESSION['owner_reg_barangay_clearance']
+            );
+            $_SESSION['success'] = "Registration successful! Your account is pending admin approval. You will receive an email once approved.";
+            header("Location: login.php");
             exit();
         } catch (Exception $e) {
-            $_SESSION['global_error'] = "An unexpected error occurred. Please try again.";
+            $_SESSION['global_error'] = "Database error: " . $e->getMessage();
         }
     }
 }
@@ -210,14 +311,45 @@ unset($_SESSION['global_error'], $_SESSION['success']);
             --accent: #00B7B5;
             --bg: #F4F4F4;
         }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-        }
-        .bg-primary { background-color: var(--primary); }
-        .bg-secondary { background-color: var(--secondary); }
-        .text-primary { color: var(--primary); }
-        .text-accent { color: var(--accent); }
+            html, body {
+                height: 100%;
+                min-height: 100%;
+            }
+            body {
+                font-family: 'Inter', sans-serif;
+                background-color: var(--bg);
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
+            .bg-primary { background-color: var(--primary); }
+            .bg-secondary { background-color: var(--secondary); }
+            .text-primary { color: var(--primary); }
+            .text-accent { color: var(--accent); }
+
+            .auth-split-bg {
+                min-height: 100vh;
+                height: auto;
+            }
+            @media (max-width: 1024px) {
+                .auth-split-bg {
+                    min-height: unset;
+                    height: auto;
+                }
+            }
+
+            /* HIDE DEFAULT BROWSER EYE to prevent conflict */
+            input::-ms-reveal,
+            input::-ms-clear {
+                display: none;
+            }
+            input:focus {
+                outline: none;
+                border-color: var(--accent);
+            }
+            input.input-error {
+                border-color: #e53e3e;
+                background-color: #fff5f5;
+            }
 
         /* HIDE DEFAULT BROWSER EYE to prevent conflict */
         input::-ms-reveal,
@@ -254,7 +386,7 @@ unset($_SESSION['global_error'], $_SESSION['success']);
         }
     </style>
 </head>
-<body class="text-gray-900 lg:overflow-hidden">
+<body class="text-gray-900">
 
     <div class="flex min-h-screen">
         <div class="hidden lg:flex lg:w-3/5 auth-split-bg relative items-center justify-center p-12">
@@ -288,45 +420,119 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                 <?php endif; ?>
 
                 <?php if ($_SESSION['owner_reg_step'] == 1): ?>
-                <form action="register_owner.php" method="POST" class="space-y-5">
+                <form action="register_owner.php" method="POST" class="space-y-5" enctype="multipart/form-data">
                     <h3 class="text-lg font-bold text-primary mb-2">Business Information</h3>
-                    <!-- ...existing code for business info form... -->
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Shop / Business Name</label>
-                        <input type="text" name="shopname" value="<?php echo htmlspecialchars($_POST['shopname'] ?? ''); ?>" placeholder="Juan's Motor Rentals" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['shopname']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
-                        <?php if (isset($errors['shopname'])): ?>
-                            <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['shopname']; ?></p>
-                        <?php endif; ?>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Shop / Business Name</label>
+                            <input type="text" name="shopname" value="<?php echo htmlspecialchars($_POST['shopname'] ?? ''); ?>" placeholder="" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['shopname']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
+                            <?php if (isset($errors['shopname'])): ?>
+                                <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['shopname']; ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Province</label>
+                            <input type="text" name="province" value="Davao Oriental" readonly class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-100 text-sm cursor-not-allowed">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">City / Municipality</label>
+                            <input type="text" name="city" value="Mati City" readonly class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-100 text-sm cursor-not-allowed">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Barangay</label>
+                            <select name="barangay" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['barangay']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
+                                <option value="">Select Barangay</option>
+                                <option value="Dahican" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Dahican')) echo 'selected'; ?>>Dahican</option>
+                                <option value="Central" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Central')) echo 'selected'; ?>>Central</option>
+                                <option value="Tagbinonga" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Tagbinonga')) echo 'selected'; ?>>Tagbinonga</option>
+                                <option value="Don Salvador" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Don Salvador')) echo 'selected'; ?>>Don Salvador</option>
+                                <option value="Badas" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Badas')) echo 'selected'; ?>>Badas</option>
+                                <option value="Bobon" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Bobon')) echo 'selected'; ?>>Bobon</option>
+                                <option value="Busok" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Busok')) echo 'selected'; ?>>Busok</option>
+                                <option value="Culian" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Culian')) echo 'selected'; ?>>Culian</option>
+                                <option value="Don Enrique Lopez" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Don Enrique Lopez')) echo 'selected'; ?>>Don Enrique Lopez</option>
+                                <option value="Don Martin Marundan" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Don Martin Marundan')) echo 'selected'; ?>>Don Martin Marundan</option>
+                                <option value="Dawan" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Dawan')) echo 'selected'; ?>>Dawan</option>
+                                <option value="Libudon" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Libudon')) echo 'selected'; ?>>Libudon</option>
+                                <option value="Mamali" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Mamali')) echo 'selected'; ?>>Mamali</option>
+                                <option value="Matiao" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Matiao')) echo 'selected'; ?>>Matiao</option>
+                                <option value="Sainz" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Sainz')) echo 'selected'; ?>>Sainz</option>
+                                <option value="Sanghay" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Sanghay')) echo 'selected'; ?>>Sanghay</option>
+                                <option value="Tagabakid" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Tagabakid')) echo 'selected'; ?>>Tagabakid</option>
+                                <option value="Tamisan" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Tamisan')) echo 'selected'; ?>>Tamisan</option>
+                                <option value="Dila" <?php if((isset($_POST['barangay']) && $_POST['barangay'] == 'Dila')) echo 'selected'; ?>>Dila</option>
+                            </select>
+                            <?php if (isset($errors['barangay'])): ?>
+                                <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['barangay']; ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="space-y-1.5 md:col-span-2">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Street / Landmark (Optional)</label>
+                            <input type="text" name="street_landmark" value="<?php echo htmlspecialchars($_POST['street_landmark'] ?? ''); ?>" placeholder="" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Business Permit </label>
+                            <div class="relative w-full">
+                                <label for="business_permit" class="w-full flex items-center justify-center px-6 py-3 rounded-2xl border <?php echo isset($errors['business_permit']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm cursor-pointer hover:bg-gray-100">
+                                    <span class="text-gray-700">Choose File</span>
+                                    <input type="file" id="business_permit" name="business_permit" accept=".pdf,.jpg,.jpeg,.png" class="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer" onchange="document.getElementById('business_permit_filename').textContent = this.files.length ? this.files[0].name : 'No file chosen'">
+                                </label>
+                                <span id="business_permit_filename" class="block text-xs text-gray-500 mt-1">No file chosen</span>
+                            </div>
+                            <?php if (isset($errors['business_permit'])): ?>
+                                <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['business_permit']; ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Barangay Clearance </label>
+                            <div class="relative w-full">
+                                <label for="barangay_clearance" class="w-full flex items-center justify-center px-6 py-3 rounded-2xl border <?php echo isset($errors['barangay_clearance']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm cursor-pointer hover:bg-gray-100">
+                                    <span class="text-gray-700">Choose File</span>
+                                    <input type="file" id="barangay_clearance" name="barangay_clearance" accept=".pdf,.jpg,.jpeg,.png" class="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer" onchange="document.getElementById('barangay_clearance_filename').textContent = this.files.length ? this.files[0].name : 'No file chosen'">
+                                </label>
+                                <span id="barangay_clearance_filename" class="block text-xs text-gray-500 mt-1">No file chosen</span>
+                            </div>
+                            <?php if (isset($errors['barangay_clearance'])): ?>
+                                <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['barangay_clearance']; ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Valid ID </label>
+                            <div class="relative w-full">
+                                <label for="valid_id" class="w-full flex items-center justify-center px-6 py-3 rounded-2xl border <?php echo isset($errors['valid_id']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm cursor-pointer hover:bg-gray-100">
+                                    <span class="text-gray-700">Choose File</span>
+                                    <input type="file" id="valid_id" name="valid_id" accept=".pdf,.jpg,.jpeg,.png" class="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer" onchange="document.getElementById('valid_id_filename').textContent = this.files.length ? this.files[0].name : 'No file chosen'">
+                                </label>
+                                <span id="valid_id_filename" class="block text-xs text-gray-500 mt-1">No file chosen</span>
+                            </div>
+                            <?php if (isset($errors['valid_id'])): ?>
+                                <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['valid_id']; ?></p>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Location</label>
-                        <select name="location" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['location']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
-                            <!-- ...existing code for location options... -->
-                            <option value="">Select Location</option>
-                            <option value="Central (Poblacion)" <?php if((isset($_POST['location']) && $_POST['location'] == 'Central (Poblacion)')) echo 'selected'; ?>>Central (Poblacion)</option>
-                            <option value="Barangay Badas" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Badas')) echo 'selected'; ?>>Barangay Badas</option>
-                            <option value="Barangay Bobon" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Bobon')) echo 'selected'; ?>>Barangay Bobon</option>
-                            <option value="Barangay Busok" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Busok')) echo 'selected'; ?>>Barangay Busok</option>
-                            <option value="Barangay Central" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Central')) echo 'selected'; ?>>Barangay Central</option>
-                            <option value="Barangay Culian" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Culian')) echo 'selected'; ?>>Barangay Culian</option>
-                            <option value="Barangay Dahican" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Dahican')) echo 'selected'; ?>>Barangay Dahican</option>
-                            <option value="Barangay Don Enrique Lopez" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Don Enrique Lopez')) echo 'selected'; ?>>Barangay Don Enrique Lopez</option>
-                            <option value="Barangay Don Martin Marundan" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Don Martin Marundan')) echo 'selected'; ?>>Barangay Don Martin Marundan</option>
-                            <option value="Barangay Dawan" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Dawan')) echo 'selected'; ?>>Barangay Dawan</option>
-                            <option value="Barangay Libudon" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Libudon')) echo 'selected'; ?>>Barangay Libudon</option>
-                            <option value="Barangay Mamali" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Mamali')) echo 'selected'; ?>>Barangay Mamali</option>
-                            <option value="Barangay Matiao" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Matiao')) echo 'selected'; ?>>Barangay Matiao</option>
-                            <option value="Barangay Sainz" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Sainz')) echo 'selected'; ?>>Barangay Sainz</option>
-                            <option value="Barangay Sanghay" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Sanghay')) echo 'selected'; ?>>Barangay Sanghay</option>
-                            <option value="Barangay Tagabakid" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Tagabakid')) echo 'selected'; ?>>Barangay Tagabakid</option>
-                            <option value="Barangay Tamisan" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Tamisan')) echo 'selected'; ?>>Barangay Tamisan</option>
-                            <option value="Barangay Dila" <?php if((isset($_POST['location']) && $_POST['location'] == 'Barangay Dila')) echo 'selected'; ?>>Barangay Dila</option>
-                        </select>
-                        <?php if (isset($errors['location'])): ?>
-                            <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['location']; ?></p>
-                        <?php endif; ?>
+                    <div class="flex items-start gap-2 mt-2">
+                        <input type="checkbox" id="terms" name="terms" value="1" class="mt-1" required <?php if(isset($_POST['terms'])) echo 'checked'; ?>>
+                        <label for="terms" class="text-xs text-gray-700 select-none">I agree to the <a href="#" onclick="showTermsModal();return false;" class="text-primary underline font-bold">Owner Terms and Conditions</a> of Mati City Moto Rentals.</label>
+                    </div>
+                    <?php if (isset($errors['terms'])): ?>
+                        <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['terms']; ?></p>
+                    <?php endif; ?>
+                    <!-- Owner Terms Modal -->
+                    <div id="termsModal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.45);">
+                        <div style="max-width:800px; width:95vw; height:80vh; background:#fff; border-radius:18px; margin:40px auto; position:relative; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden;">
+                            <button onclick="closeTermsModal()" style="position:absolute; top:10px; right:18px; background:none; border:none; font-size:2rem; color:#005461; cursor:pointer; z-index:10;">&times;</button>
+                            <iframe src="terms_owner.html" style="width:100%; height:100%; border:none; border-radius:18px;"></iframe>
+                        </div>
                     </div>
                     <button type="submit" name="step1" class="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-xl shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98] mt-4">Next: Personal Info</button>
+                <script>
+                function showTermsModal() {
+                    document.getElementById('termsModal').style.display = 'block';
+                }
+                function closeTermsModal() {
+                    document.getElementById('termsModal').style.display = 'none';
+                }
+                </script>
                 </form>
                 <?php elseif ($_SESSION['owner_reg_step'] == 2): ?>
                 <!-- Step 2: Personal Info -->
@@ -337,6 +543,13 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                         <input type="text" name="fullname" value="<?php echo htmlspecialchars($_POST['fullname'] ?? ''); ?>" placeholder="Juan Dela Cruz" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['fullname']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
                         <?php if (isset($errors['fullname'])): ?>
                             <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['fullname']; ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest ml-1">Phone Number</label>
+                        <input type="text" name="phone_number" maxlength="11" pattern="[0-9]{11}" value="<?php echo htmlspecialchars($_POST['phone_number'] ?? ''); ?>" placeholder="09XXXXXXXXX" class="w-full px-6 py-4 rounded-2xl border <?php echo isset($errors['phone_number']) ? 'input-error' : 'border-gray-100'; ?> bg-gray-50 focus:bg-white transition-all text-sm">
+                        <?php if (isset($errors['phone_number'])): ?>
+                            <p class="text-red-500 text-[11px] font-medium ml-2 mt-1"><?php echo $errors['phone_number']; ?></p>
                         <?php endif; ?>
                     </div>
                     <div class="space-y-1.5">

@@ -178,13 +178,26 @@ if (isset($_SESSION['userid'])) {
     <main class="max-w-7xl mx-auto px-4 py-12">
         
         <?php if(isset($_SESSION['userid']) && $is_verified != 1): ?>
-        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-r-xl flex items-center gap-3 shadow-sm">
-            <div class="text-amber-500"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+        <div class="bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-100 border-l-8 border-amber-600 p-6 mb-10 rounded-2xl flex items-center gap-5 shadow-lg animate-pulse-slow">
+            <div class="text-amber-600 flex-shrink-0">
+                <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
+            </div>
             <div>
-                <p class="font-bold text-amber-800 text-sm">Account Verification Pending</p>
-                <p class="text-amber-700 text-xs">Please upload the important documents. Please wait for an admin to approve it.</p>
+                <p class="font-extrabold text-amber-900 text-lg mb-1 tracking-wide uppercase">Account Verification Pending</p>
+                <p class="text-amber-800 text-sm font-medium mb-2">Your account is not yet verified. Please upload the required documents and update your profile to continue using all features.</p>
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <a href="profile.php" class="inline-block px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow transition-all text-xs uppercase tracking-wider">Update Profile &amp; Settings</a>
+                    <span class="inline-block px-3 py-2 bg-white/80 text-amber-700 font-semibold rounded-lg text-xs">Wait for admin approval after uploading</span>
+                </div>
             </div>
         </div>
+        <style>
+        @keyframes pulse-slow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0.15); }
+        }
+        .animate-pulse-slow { animation: pulse-slow 2.5s infinite; }
+        </style>
         <?php endif; ?>
 
         <!-- Filter -->

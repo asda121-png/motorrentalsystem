@@ -56,15 +56,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
         $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, last_tire_change, last_oil_change, image_url) 
                        VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$last_tire', '$last_oil', $image_url)";
         
-        if (mysqli_query($conn, $insert_sql)) {
-            // Create notification for admin
-            $admin_message = "A new unit '$model_name' was added to the fleet.";
-            create_notification($conn, null, 'admin', $admin_message, 'admin/dashboard.php');
+        // --- UPDATED ERROR HANDLING HERE ---
+        try {
+            if (mysqli_query($conn, $insert_sql)) {
+                // Create notification for admin
+                $admin_message = "A new unit '$model_name' was added to the fleet.";
+                create_notification($conn, null, 'admin', $admin_message, 'admin/dashboard.php');
 
-            header("Location: manage_motorcycle.php?msg=added");
-            exit();
-        } else {
-            $error_msg = "Error adding unit: " . mysqli_error($conn);
+                header("Location: manage_motorcycle.php?msg=added");
+                exit();
+            }
+        } catch (mysqli_sql_exception $e) {
+            // Check if error code is 1062 (Duplicate Entry)
+            if ($e->getCode() == 1062) {
+                $error_msg = "Error: The plate number '$plate_number' already exists in the system. Please check details.";
+            } else {
+                $error_msg = "Database Error: " . $e->getMessage();
+            }
         }
     }
 }
@@ -134,15 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
 
     // 2. Record the transaction
     $stmt = $conn->prepare("INSERT INTO rentals (bike_id, customer_id, owner_id, amount_collected, rental_start_date, expected_return_date, status) VALUES (?, 0, ?, ?, ?, ?, 'Active')");
-    // Using customer_id 0 for walk-in, and storing name in the rentals table itself might need a schema change,
-    // but for now, let's assume a 'customer_name' column exists or we can add it.
-    // A better approach is to add a generic walk-in customer to the customers table.
-    // For now, let's just insert the name into the `rentals` table. We need to add the column.
-    // Let's assume the user will add a `customer_name` text column to the `rentals` table.
-    // The provided schema doesn't have it, so I'll add a fallback.
     $stmt->bind_param("iidss", $bike_id, $owner_id, $amount, $start_date, $end_date);
-    // This will fail if `customer_name` is not in the rentals table. Let's adjust the query.
-    mysqli_query($conn, "INSERT INTO rentals (bike_id, owner_id, customer_id, amount_collected, rental_start_date, expected_return_date, status) VALUES ($bike_id, $owner_id, 0, $amount, '$start_date', '$end_date', 'Active')");
+    
+    // Backup query if prepared statement fails due to schema mismatch with vars
+    if ($stmt->error) {
+         mysqli_query($conn, "INSERT INTO rentals (bike_id, owner_id, customer_id, amount_collected, rental_start_date, expected_return_date, status) VALUES ($bike_id, $owner_id, 0, $amount, '$start_date', '$end_date', 'Active')");
+    } else {
+        $stmt->execute();
+    }
 
     header("Location: manage_motorcycle.php?msg=rented");
     exit();
@@ -165,7 +172,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pickup_unit'])) {
 include 'header.php';
 ?>
 
-<!-- Error Feedback Message -->
 <?php if (isset($error_msg)): ?>
     <div class="bg-red-50 text-red-700 p-4 rounded-2xl mb-6 border border-red-100 flex items-center gap-3 shadow-sm">
         <i class="fa-solid fa-circle-exclamation text-xl"></i> 
@@ -173,7 +179,6 @@ include 'header.php';
     </div>
 <?php endif; ?>
 
-<!-- Action Feedback Message -->
 <?php if (isset($_GET['msg'])): ?>
     <div class="bg-emerald-50 text-emerald-700 p-4 rounded-2xl mb-6 border border-emerald-100 flex items-center gap-3 shadow-sm animate-pulse">
         <i class="fa-solid fa-circle-check text-xl"></i> 
@@ -356,87 +361,129 @@ include 'header.php';
     <span>System Note: All transactions are logged as <strong>Cash Only</strong>. Ensure you have collected the payment before clicking "Rent Now".</span>
 </div>
 
-<!-- ADD UNIT MODAL -->
 <div id="addUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                    <div class="mb-6">
-                        <h3 class="text-xl font-black text-slate-800" id="modal-title">Add New Motorcycle</h3>
-                        <p class="text-sm text-slate-500">Enter the details of the new unit to add to your fleet.</p>
+            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-[2rem] bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
+                
+                <div class="bg-white px-8 pb-8 pt-8">
+                    <div class="mb-8 border-b border-slate-100 pb-5">
+                        <h3 class="text-2xl font-black text-slate-800 tracking-tight">Add New Motorcycle</h3>
+                        <p class="text-sm text-slate-500 font-medium mt-1">Fill in the vehicle specifications to expand your fleet.</p>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Model Name</label>
-                            <input type="text" name="model_name" required placeholder="e.g. Honda Click 125i" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Plate Number</label>
-                            <input type="text" name="plate_number" required placeholder="ABC 123" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Type</label>
-                            <select name="type" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                                <option value="Scooter">Scooter</option>
-                                <option value="Underbone">Underbone</option>
-                                <option value="Big Bike">Big Bike</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Transmission</label>
-                            <select name="transmission" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                                <option value="Automatic">Automatic</option>
-                                <option value="Manual">Manual</option>
-                                <option value="Semi-Automatic">Semi-Automatic</option>
-                            </select>
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Inclusions (comma separated)</label>
-                            <input type="text" name="inclusions" placeholder="2 Helmets, Raincoat" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Description</label>
-                            <textarea name="description" rows="3" placeholder="Short description of the unit..." class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary"></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Daily Rate (₱)</label>
-                            <input type="number" name="daily_rate" min="0" required placeholder="500" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Fuel Level (%)</label>
-                            <input type="number" name="fuel_level" value="100" max="100" min="0" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
                         
-                        <div class="col-span-2 pt-4 border-t border-slate-50 mt-2">
-                            <span class="text-xs font-black text-primary uppercase tracking-widest">Maintenance Log</span>
+                        <div class="space-y-6">
+                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">
+                                <i class="fa-solid fa-motorcycle"></i> Vehicle Identity
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Model Name</label>
+                                <input type="text" name="model_name" required placeholder="e.g. Yamaha NMAX 155" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Plate No.</label>
+                                    <input type="text" name="plate_number" required placeholder="ABC 123" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Type</label>
+                                    <div class="relative">
+                                        <select name="type" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary appearance-none shadow-sm">
+                                            <option value="Scooter">Scooter</option>
+                                            <option value="Underbone">Underbone</option>
+                                            <option value="Big Bike">Big Bike</option>
+                                        </select>
+                                        <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Transmission</label>
+                                <div class="relative">
+                                    <select name="transmission" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary appearance-none shadow-sm">
+                                        <option value="Automatic">Automatic</option>
+                                        <option value="Manual">Manual</option>
+                                        <option value="Semi-Automatic">Semi-Automatic</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Description</label>
+                                <textarea name="description" rows="3" placeholder="Color, features, condition..." class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary resize-none shadow-sm"></textarea>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Last Tire Change</label>
-                            <input type="date" name="last_tire_change" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Last Oil Change</label>
-                            <input type="date" name="last_oil_change" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Motorcycle Image</label>
-                            <input type="file" name="bike_image" accept="image/*" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+
+                        <div class="space-y-6">
+                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">
+                                <i class="fa-solid fa-file-contract"></i> Rental & Status
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Daily Rate (₱)</label>
+                                    <input type="number" name="daily_rate" min="0" required placeholder="0.00" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Fuel (%)</label>
+                                    <input type="number" name="fuel_level" value="100" max="100" min="0" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Inclusions</label>
+                                <input type="text" name="inclusions" placeholder="e.g. 2 Helmets, Raincoat" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                            </div>
+
+                            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                                <label class="block text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">Maintenance Check</label>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <span class="text-xs font-bold text-slate-500 mb-1 block">Last Tire Change</span>
+                                        <input type="date" name="last_tire_change" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2.5 focus:border-primary focus:ring-primary">
+                                    </div>
+                                    <div>
+                                        <span class="text-xs font-bold text-slate-500 mb-1 block">Last Oil Change</span>
+                                        <input type="date" name="last_oil_change" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2.5 focus:border-primary focus:ring-primary">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                 <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Motorcycle Image</label>
+                                 <label class="flex items-center gap-4 w-full cursor-pointer group p-3 rounded-xl border border-dashed border-slate-300 hover:border-primary hover:bg-slate-50 transition-all">
+                                    <div class="bg-primary/10 text-primary w-10 h-10 rounded-lg flex items-center justify-center transition-colors">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <span class="block text-xs font-bold text-slate-700 group-hover:text-primary">Upload Image</span>
+                                        <span id="fileName" class="block text-[10px] text-slate-400">PNG, JPG up to 5MB</span>
+                                    </div>
+                                    <input type="file" name="bike_image" accept="image/*" class="hidden" onchange="document.getElementById('fileName').textContent = this.files[0] ? this.files[0].name : 'File selected'">
+                                 </label>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                    <button type="submit" name="add_unit" class="inline-flex w-full justify-center rounded-xl bg-primary px-3 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-hover sm:ml-3 sm:w-auto">Save Unit</button>
-                    <button type="button" onclick="document.getElementById('addUnitModal').classList.add('hidden')" class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-3 py-3 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto">Cancel</button>
+
+                <div class="bg-slate-50 px-8 py-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-slate-100">
+                    <button type="button" onclick="document.getElementById('addUnitModal').classList.add('hidden')" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-white text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 transition-all">Cancel</button>
+                    <button type="submit" name="add_unit" class="w-full sm:w-auto px-8 py-3 rounded-xl bg-primary text-sm font-bold text-white shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all">
+                        <i class="fa-solid fa-check mr-2"></i> Save Unit
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- RETURN & INSPECT MODAL -->
 <div id="returnUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -472,7 +519,6 @@ include 'header.php';
     </div>
 </div>
 
-<!-- MANUAL RENT MODAL -->
 <div id="rentUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -517,7 +563,6 @@ include 'header.php';
     </div>
 </div>
 
-<!-- VIEW RENTAL DETAILS MODAL -->
 <div id="viewRentalModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -550,7 +595,6 @@ include 'header.php';
                         <span class="font-bold text-slate-700" id="viewDueDate"></span>
                     </div>
                     
-                    <!-- Late Section -->
                     <div id="viewLateContainer" class="hidden bg-red-50 p-4 rounded-xl border border-red-100 mt-4">
                         <div class="flex items-center gap-2 text-red-600 font-bold mb-2">
                             <i class="fa-solid fa-triangle-exclamation"></i> Overdue by <span id="viewLateDays"></span> Day(s)

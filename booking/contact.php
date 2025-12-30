@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'smtp_mailer.php';
 
 // Database Connection
 $conn = mysqli_connect('localhost', 'root', '', 'moto_rental_db');
@@ -22,6 +23,24 @@ if (isset($_SESSION['userid'])) {
 
     $cust_notif_query = "SELECT * FROM notifications WHERE user_id = $uid AND user_type = 'customer' ORDER BY created_at DESC LIMIT 5";
     $cust_notif_res = mysqli_query($conn, $cust_notif_query);
+}
+
+// Handle Contact Form Submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
+    $name = $_POST['name'] ?? 'Guest';
+    $email = $_POST['email'] ?? 'No email provided';
+    $subject = $_POST['subject'] ?? 'No Subject';
+    $message = $_POST['message'] ?? '';
+
+    $email_body = "<h3>New Message from Contact Us</h3><p><strong>Name:</strong> " . htmlspecialchars($name) . "</p><p><strong>Email:</strong> " . htmlspecialchars($email) . "</p><p><strong>Subject:</strong> " . htmlspecialchars($subject) . "</p><p><strong>Message:</strong><br>" . nl2br(htmlspecialchars($message)) . "</p>";
+
+    // Send to admin email
+    if (send_gmail('labradoriiichristian@gmail.com', "Contact Us: $subject", $email_body)) {
+        echo "<script>alert('Message sent successfully! We will get back to you shortly.'); window.location.href='contact.php';</script>";
+        exit();
+    } else {
+        echo "<script>alert('Failed to send message. Please try again later.');</script>";
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -180,7 +199,7 @@ if (isset($_SESSION['userid'])) {
             <!-- Contact Form -->
             <div class="bg-white rounded-[2.5rem] p-10 shadow-lg border border-gray-100">
                 <h3 class="text-xl font-bold text-primary mb-6">Send us a Message</h3>
-                <form action="#" method="POST" class="space-y-6">
+                <form action="contact.php" method="POST" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Your Name</label>
@@ -202,7 +221,7 @@ if (isset($_SESSION['userid'])) {
                         <textarea name="message" rows="5" class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold focus:outline-none focus:border-primary focus:bg-white transition-all" placeholder="How can we help you?"></textarea>
                     </div>
 
-                    <button type="button" onclick="alert('Message sent! We will get back to you shortly.')" class="w-full py-4 rounded-2xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98]">
+                    <button type="submit" name="send_message" class="w-full py-4 rounded-2xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98]">
                         Send Message
                     </button>
                 </form>

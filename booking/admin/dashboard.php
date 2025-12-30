@@ -97,8 +97,8 @@ $current_page = $_GET['page'] ?? 'admin_master';
 
 // --- ACTION HANDLING ---
 // Handle Owner Verification
-if (isset($_GET['verify_owner'])) {
-    $target_id = (int)$_GET['verify_owner'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_owner'])) {
+    $target_id = (int)$_POST['owner_id'];
     mysqli_query($conn, "UPDATE owners SET status='active' WHERE ownerid=$target_id");
     require_once __DIR__ . '/../owner/owner_email_helper.php';
     send_owner_status_email($target_id, 'active');
@@ -427,35 +427,49 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                         <td><code><?= htmlspecialchars($row['email']) ?></code></td>
                                         <td><code><?= $row['shopname'] ?></code></td>
                                         <td>
-                                            <?php
-                                            function getOwnerDocLink($filename) {
-                                                if (!$filename) return '';
-                                                $file = basename($filename);
-                                                return "../assets/owner_uploads/" . $file;
-                                            }
-                                            ?>
-                                            <?php if (!empty($row['business_permit'])): ?>
-                                                <a href="<?= getOwnerDocLink($row['business_permit']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['business_permit']) ?>">Permit</a>
-                                            <?php else: ?>
-                                                <span class="badge" style="background: #fee2e2; color: #991b1b;">No Permit</span>
-                                            <?php endif; ?>
-                                            <?php if (!empty($row['valid_id'])): ?>
-                                                <a href="<?= getOwnerDocLink($row['valid_id']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['valid_id']) ?>">Valid ID</a>
-                                            <?php else: ?>
-                                                <span class="badge" style="background: #fee2e2; color: #991b1b;">No ID</span>
-                                            <?php endif; ?>
-                                            <?php if (!empty($row['barangay_clearance'])): ?>
-                                                <a href="<?= getOwnerDocLink($row['barangay_clearance']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['barangay_clearance']) ?>">Barangay Clearance</a>
-                                            <?php else: ?>
-                                                <span class="badge" style="background: #fee2e2; color: #991b1b;">No Brgy Clearance</span>
-                                            <?php endif; ?>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                <?php
+                                                if (!function_exists('getOwnerDocLink')) {
+                                                    function getOwnerDocLink($filename) {
+                                                        if (!$filename) return '';
+                                                        $file = basename($filename);
+                                                        return "../assets/owner_uploads/" . $file;
+                                                    }
+                                                }
+                                                ?>
+                                                <?php if (!empty($row['business_permit'])): ?>
+                                                    <a href="<?= getOwnerDocLink($row['business_permit']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['business_permit']) ?>">Permit</a>
+                                                <?php else: ?>
+                                                    <span class="badge" style="background: #fee2e2; color: #991b1b; white-space: nowrap;">No Permit</span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($row['valid_id'])): ?>
+                                                    <a href="<?= getOwnerDocLink($row['valid_id']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['valid_id']) ?>">Valid ID</a>
+                                                <?php else: ?>
+                                                    <span class="badge" style="background: #fee2e2; color: #991b1b; white-space: nowrap;">No ID</span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($row['barangay_clearance'])): ?>
+                                                    <a href="<?= getOwnerDocLink($row['barangay_clearance']) ?>" target="_blank" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.8rem;" title="<?= getOwnerDocLink($row['barangay_clearance']) ?>">Barangay Clearance</a>
+                                                <?php else: ?>
+                                                    <span class="badge" style="background: #fee2e2; color: #991b1b; white-space: nowrap;">No Brgy Clearance</span>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                         <td><span class="badge badge-<?= strtolower($row['status']) ?>"><?= $row['status'] ?></span></td>
                                         <td style="text-align:center;">
                                             <div style="display: flex; flex-direction: row; gap: 8px; justify-content: center; align-items: center;">
                                                 <button class="btn btn-outline" onclick='openModal("owner", <?php echo htmlspecialchars(json_encode($row), ENT_QUOTES, "UTF-8"); ?>)'><i class="fa-solid fa-eye"></i> View</button>
-                                                <?php if ($row['status'] == 'pending'): ?>
-                                                    <a href="?verify_owner=<?= $row['ownerid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Verify</a>
+                                                <?php if (strtolower($row['status']) !== 'active'): ?>
+                                                    <?php 
+                                                    // Check if all documents are uploaded
+                                                    $has_docs = !empty($row['business_permit']) && !empty($row['valid_id']) && !empty($row['barangay_clearance']);
+                                                    if ($has_docs): ?>
+                                                        <form method="POST" style="margin:0;">
+                                                            <input type="hidden" name="owner_id" value="<?= $row['ownerid'] ?>">
+                                                            <button type="submit" name="verify_owner" class="btn btn-success"><i class="fa-solid fa-check"></i> Verify</button>
+                                                        </form>
+                                                    <?php else: ?>
+                                                        <button class="btn btn-outline" style="color: #94a3b8; cursor: not-allowed;" title="Missing Documents"><i class="fa-solid fa-triangle-exclamation"></i> Incomplete</button>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
                                                 <button class="btn btn-outline" style="color: #ef4444;" onclick="openSuspendModal(<?= $row['ownerid'] ?>, '<?= htmlspecialchars($row['fullname'], ENT_QUOTES) ?>')"><i class="fa-solid fa-ban"></i> Suspend</button>
                                             </div>

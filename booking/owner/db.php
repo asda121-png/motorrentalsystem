@@ -46,6 +46,9 @@ $tables = [
     hashedpassword VARCHAR(255) NOT NULL,
     role ENUM('owner') DEFAULT 'owner',
     status ENUM('active', 'disabled', 'pending') DEFAULT 'pending',
+    business_permit VARCHAR(255) DEFAULT NULL,
+    valid_id VARCHAR(255) DEFAULT NULL,
+    barangay_clearance VARCHAR(255) DEFAULT NULL,
     last_activity DATETIME NULL DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     
@@ -145,6 +148,21 @@ if (mysqli_num_rows($desc_check) == 0) {
     mysqli_query($conn, "ALTER TABLE bikes ADD COLUMN description TEXT AFTER inclusions");
 }
 
+// Check for next_maintenance column
+$maint_check = mysqli_query($conn, "SHOW COLUMNS FROM bikes LIKE 'next_maintenance'");
+if (mysqli_num_rows($maint_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE bikes ADD COLUMN next_maintenance DATE NULL AFTER status");
+}
+
+// --- OWNER SCHEMA UPDATES ---
+$owner_doc_cols = ['business_permit', 'valid_id', 'barangay_clearance'];
+foreach ($owner_doc_cols as $col) {
+    $check = mysqli_query($conn, "SHOW COLUMNS FROM owners LIKE '$col'");
+    if (mysqli_num_rows($check) == 0) {
+        mysqli_query($conn, "ALTER TABLE owners ADD COLUMN $col VARCHAR(255) DEFAULT NULL");
+    }
+}
+
 // --- CUSTOMER PROFILE UPDATES ---
 $cust_phone = mysqli_query($conn, "SHOW COLUMNS FROM customers LIKE 'phone_number'");
 if (mysqli_num_rows($cust_phone) == 0) {
@@ -213,8 +231,8 @@ if (mysqli_num_rows($bike_status_check) == 0) {
 }
 
 // --- AUTOMATIC MAINTENANCE CHECK ---
-// If last_tire_change is > 2 months ago, set status to Maintenance (only if currently Available)
-mysqli_query($conn, "UPDATE bikes SET status='Maintenance' WHERE last_tire_change < DATE_SUB(NOW(), INTERVAL 2 MONTH) AND status='Available'");
+// If next_maintenance date has passed, set status to Maintenance (only if currently Available)
+mysqli_query($conn, "UPDATE bikes SET status='Maintenance' WHERE next_maintenance < CURDATE() AND status='Available'");
 
 /**
  * Creates a new notification.

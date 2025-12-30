@@ -16,6 +16,10 @@ if (!isset($_SESSION['userid']) || ($_SESSION['role'] ?? '') !== 'owner') {
 $page_title = "Manage Motorcycle";
 $active_nav = "manage";
 
+// Check Owner Status
+$status_check = mysqli_query($conn, "SELECT status FROM owners WHERE ownerid=" . $_SESSION['userid']);
+$owner_status = mysqli_fetch_assoc($status_check)['status'] ?? 'pending';
+
 // --- HANDLE FORM SUBMISSION (ADD UNIT) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
     $owner_id = $_SESSION['userid'];
@@ -28,8 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
     $description = mysqli_real_escape_string($conn, $_POST['description']);
     $daily_rate = (float)$_POST['daily_rate'];
     $fuel_level = (int)$_POST['fuel_level'];
-    $last_tire = $_POST['last_tire_change'];
-    $last_oil = $_POST['last_oil_change'];
+    $next_maintenance = $_POST['next_maintenance'];
 
     // Handle Image Upload
     $image_url = "NULL";
@@ -50,11 +53,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
         }
     }
 
-    if ($daily_rate < 0) {
+    if ($owner_status !== 'active') {
+        $error_msg = "Account not verified. You cannot add motorcycles until your account is approved.";
+    } elseif ($daily_rate < 0) {
         $error_msg = "Daily rate cannot be less than 0.";
     } else {
-        $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, last_tire_change, last_oil_change, image_url) 
-                       VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$last_tire', '$last_oil', $image_url)";
+        $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, next_maintenance, image_url) 
+                       VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$next_maintenance', $image_url)";
         
         // --- UPDATED ERROR HANDLING HERE ---
         try {
@@ -128,31 +133,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     exit();
 }
 
+// --- HANDLE WALKIN REGISTRATION (POST) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_walkin'])) {
+    $fullname = mysqli_real_escape_string($conn, $_POST['reg_fullname']);
+    $email = mysqli_real_escape_string($conn, $_POST['reg_email']);
+    $phone = mysqli_real_escape_string($conn, $_POST['reg_phone']);
+    $password = $_POST['reg_password'];
+    
+    // Check duplicates
+    $check = mysqli_query($conn, "SELECT userid FROM customers WHERE email='$email'");
+    if (mysqli_num_rows($check) > 0) {
+        $error_msg = "Email already registered.";
+    } else {
+        $hashed = password_hash($password, PASSWORD_DEFAULT);
+        // Insert with is_verified = 0
+        $sql = "INSERT INTO customers (fullname, email, phone_number, hashedpassword, status, is_verified) VALUES ('$fullname', '$email', '$phone', '$hashed', 'active', 0)";
+        if (mysqli_query($conn, $sql)) {
+             // Notify Admin
+             $admin_msg = "New walk-in customer registered: $fullname. Pending verification.";
+             create_notification($conn, null, 'admin', $admin_msg, 'admin/dashboard.php?page=verify_customers');
+             
+             header("Location: manage_motorcycle.php?msg=cust_registered");
+             exit();
+        } else {
+            $error_msg = "Registration failed: " . mysqli_error($conn);
+        }
+    }
+}
+
 // --- HANDLE MANUAL RENT (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
     $bike_id = (int)$_POST['bike_id'];
-    $customer_name = mysqli_real_escape_string($conn, $_POST['customer_name']);
+    $customer_email = mysqli_real_escape_string($conn, $_POST['customer_email']);
     $amount = (float)$_POST['amount_collected'];
     $start_date = $_POST['start_date'];
     $end_date = str_replace('T', ' ', $_POST['end_date']); // Handle datetime-local format
     $owner_id = $_SESSION['userid'];
     
-    // 1. Update bike status to Rented
-    mysqli_query($conn, "UPDATE bikes SET status='Rented' WHERE id=$bike_id");
+    // Check if customer exists and is verified
+    $check_cust = mysqli_query($conn, "SELECT userid, is_verified FROM customers WHERE email = '$customer_email' LIMIT 1");
+    $customer_id = 0;
+    $proceed = true;
 
-    // 2. Record the transaction
-    $stmt = $conn->prepare("INSERT INTO rentals (bike_id, customer_id, owner_id, amount_collected, rental_start_date, expected_return_date, status) VALUES (?, 0, ?, ?, ?, ?, 'Active')");
-    $stmt->bind_param("iidss", $bike_id, $owner_id, $amount, $start_date, $end_date);
-    
-    // Backup query if prepared statement fails due to schema mismatch with vars
-    if ($stmt->error) {
-         mysqli_query($conn, "INSERT INTO rentals (bike_id, owner_id, customer_id, amount_collected, rental_start_date, expected_return_date, status) VALUES ($bike_id, $owner_id, 0, $amount, '$start_date', '$end_date', 'Active')");
+    if (mysqli_num_rows($check_cust) > 0) {
+        $cust_data = mysqli_fetch_assoc($check_cust);
+        if ($cust_data['is_verified'] == 0) {
+            $error_msg = "Cannot process rental: Customer is registered but NOT verified by Admin.";
+            $proceed = false;
+        } else {
+            $customer_id = $cust_data['userid'];
+        }
     } else {
-        $stmt->execute();
+        // Customer not found
+        $error_msg = "Customer not found. Please register them first.";
+        $proceed = false;
     }
 
-    header("Location: manage_motorcycle.php?msg=rented");
-    exit();
+    if ($proceed) {
+        // 1. Update bike status to Rented
+        mysqli_query($conn, "UPDATE bikes SET status='Rented' WHERE id=$bike_id");
+
+        // 2. Record the transaction
+        $stmt = $conn->prepare("INSERT INTO rentals (bike_id, customer_id, owner_id, amount_collected, rental_start_date, expected_return_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Active')");
+        $stmt->bind_param("iiidss", $bike_id, $customer_id, $owner_id, $amount, $start_date, $end_date);
+        $stmt->execute();
+
+        header("Location: manage_motorcycle.php?msg=rented");
+        exit();
+    }
 }
 
 // --- HANDLE PICKUP UNIT (POST) ---
@@ -189,6 +237,7 @@ include 'header.php';
             if ($_GET['msg'] == 'added') echo "New motorcycle unit added to your fleet successfully.";
             if ($_GET['msg'] == 'updated') echo "Motorcycle status updated successfully.";
             if ($_GET['msg'] == 'picked_up') echo "Motorcycle picked up! Status updated to 'Rented'.";
+            if ($_GET['msg'] == 'cust_registered') echo "Customer registered successfully! Please wait for Admin verification.";
         ?>
         </span>
     </div>
@@ -200,9 +249,13 @@ include 'header.php';
             <h2 class="text-2xl font-black text-slate-800 tracking-tight">Fleet Management</h2>
             <p class="text-slate-400 text-sm font-medium mt-1">Control availability and process walk-in rentals.</p>
         </div>
-        <button onclick="document.getElementById('addUnitModal').classList.remove('hidden')" class="bg-primary text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all">
-            <i class="fa-solid fa-plus mr-2"></i> Add New Unit
-        </button>
+        <?php if ($owner_status === 'active'): ?>
+            <button onclick="document.getElementById('addUnitModal').classList.remove('hidden')" class="bg-primary text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all">
+                <i class="fa-solid fa-plus mr-2"></i> Add New Unit
+            </button>
+        <?php else: ?>
+            <button class="bg-slate-200 text-slate-400 px-6 py-3 rounded-xl font-bold text-sm cursor-not-allowed" title="Account verification required"><i class="fa-solid fa-lock mr-2"></i> Add New Unit</button>
+        <?php endif; ?>
     </div>
 
     <table class="w-full">
@@ -210,7 +263,7 @@ include 'header.php';
             <tr>
                 <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Vehicle Details</th>
                 <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Plate No.</th>
-                <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Maintenance</th>
+                <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Next Maintenance</th>
                 <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Rate / Day</th>
                 <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
                 <th class="px-8 py-5 text-right text-[10px] font-black uppercase tracking-widest text-slate-400">Quick Actions</th>
@@ -288,9 +341,9 @@ include 'header.php';
                         <td class="px-8 py-6"><span class="font-mono text-sm bg-slate-100 px-3 py-1 rounded-lg text-slate-600 font-bold"><?php echo htmlspecialchars($row['plate_number']); ?></span></td>
                         <td class="px-8 py-6">
                             <div class="text-xs text-slate-500">
-                                <div class="flex items-center gap-2 mb-1" title="Last Tire Change">
-                                    <i class="fa-solid fa-circle-dot text-[10px] text-slate-300"></i> 
-                                    <?php echo $row['last_tire_change'] ? date('M d, Y', strtotime($row['last_tire_change'])) : 'N/A'; ?>
+                                <div class="flex items-center gap-2 mb-1" title="Next Scheduled Maintenance">
+                                    <i class="fa-solid fa-screwdriver-wrench text-[10px] text-slate-300"></i> 
+                                    <?php echo $row['next_maintenance'] ? date('M d, Y', strtotime($row['next_maintenance'])) : 'N/A'; ?>
                                 </div>
                             </div>
                         </td>
@@ -444,15 +497,9 @@ include 'header.php';
 
                             <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                                 <label class="block text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">Maintenance Check</label>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <span class="text-xs font-bold text-slate-500 mb-1 block">Last Tire Change</span>
-                                        <input type="date" name="last_tire_change" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2.5 focus:border-primary focus:ring-primary">
-                                    </div>
-                                    <div>
-                                        <span class="text-xs font-bold text-slate-500 mb-1 block">Last Oil Change</span>
-                                        <input type="date" name="last_oil_change" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2.5 focus:border-primary focus:ring-primary">
-                                    </div>
+                                <div>
+                                    <span class="text-xs font-bold text-slate-500 mb-1 block">Next Scheduled Maintenance</span>
+                                    <input type="date" name="next_maintenance" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2.5 focus:border-primary focus:ring-primary">
                                 </div>
                             </div>
                             
@@ -535,9 +582,13 @@ include 'header.php';
                     
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Customer Name</label>
-                            <input type="text" name="customer_name" required placeholder="e.g., John Doe (Walk-in)" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Customer Email</label>
+                            <input type="email" name="customer_email" required placeholder="customer@example.com" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
                         </div>
+                        <div class="text-right">
+                            <button type="button" onclick="openRegisterModal()" class="text-xs font-bold text-primary hover:underline">Customer not registered? Click here</button>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Start Date</label>
@@ -557,6 +608,47 @@ include 'header.php';
                 <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
                     <button type="submit" class="inline-flex w-full justify-center rounded-xl bg-primary px-3 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-hover sm:ml-3 sm:w-auto">Confirm Rental</button>
                     <button type="button" onclick="document.getElementById('rentUnitModal').classList.add('hidden')" class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-3 py-3 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="registerWalkinModal" class="fixed inset-0 z-[110] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                    <div class="mb-6">
+                        <h3 class="text-xl font-black text-slate-800">Register Walk-in Customer</h3>
+                        <p class="text-sm text-slate-500">Create a new account for verification.</p>
+                    </div>
+                    
+                    <input type="hidden" name="register_walkin" value="1">
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Full Name</label>
+                            <input type="text" name="reg_fullname" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Email Address</label>
+                            <input type="email" name="reg_email" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Phone Number</label>
+                            <input type="text" name="reg_phone" required maxlength="11" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Password</label>
+                            <input type="password" name="reg_password" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                    <button type="submit" class="inline-flex w-full justify-center rounded-xl bg-primary px-3 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-hover sm:ml-3 sm:w-auto">Register</button>
+                    <button type="button" onclick="document.getElementById('registerWalkinModal').classList.add('hidden')" class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-3 py-3 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto">Cancel</button>
                 </div>
             </form>
         </div>
@@ -626,6 +718,11 @@ include 'header.php';
         document.getElementById('rentBikeName').textContent = name;
         document.getElementById('rentAmount').value = rate;
         document.getElementById('rentUnitModal').classList.remove('hidden');
+    }
+
+    function openRegisterModal() {
+        document.getElementById('rentUnitModal').classList.add('hidden');
+        document.getElementById('registerWalkinModal').classList.remove('hidden');
     }
 
     function openViewModal(data) {

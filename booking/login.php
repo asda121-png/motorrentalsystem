@@ -47,13 +47,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($user && password_verify($password, $user['hashedpassword'])) {
             // Check status
-            $block_statuses = ['inactive', 'banned', 'pending'];
+            $block_statuses = ['inactive', 'banned', 'disabled'];
             if (in_array($user['status'], $block_statuses)) {
-                if ($user['status'] === 'pending') {
-                    $_SESSION['error'] = "Your owner account is pending admin approval. Please wait for an email notification.";
-                } else {
-                    $_SESSION['error'] = "Your account is currently inactive or banned.";
-                }
+                $_SESSION['error'] = "Your account is currently inactive or disabled.";
+            } elseif ($userType !== 'owner' && $user['status'] === 'pending') {
+                $_SESSION['error'] = "Your account is pending verification.";
             } else {
                 // Set Session Variables
                 $_SESSION['userid'] = ($userType === 'owner') ? $user['ownerid'] : $user['userid'];

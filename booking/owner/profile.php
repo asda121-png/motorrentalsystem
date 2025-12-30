@@ -73,6 +73,44 @@ include 'header.php';
                             <i class="fa-solid fa-lock text-gray-300" title="Email cannot be changed"></i>
                         </div>
                     </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Phone Number</label>
+                        <div class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold">
+                            <?php echo htmlspecialchars($owner['phone_number'] ?? 'N/A'); ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-gray-50">
+                    <h3 class="text-xs font-bold uppercase text-gray-400 tracking-widest mb-4 ml-1">Legal Documents</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <?php 
+                        $docs = [
+                            ['label' => 'Business Permit', 'file' => $owner['business_permit'], 'icon' => 'fa-file-signature'],
+                            ['label' => 'Valid ID', 'file' => $owner['valid_id'], 'icon' => 'fa-id-card'],
+                            ['label' => 'Brgy. Clearance', 'file' => $owner['barangay_clearance'], 'icon' => 'fa-building-shield']
+                        ];
+                        foreach($docs as $doc):
+                            $hasFile = !empty($doc['file']);
+                            $fileName = $hasFile ? basename($doc['file']) : '';
+                            $fileUrl = $hasFile ? "../assets/owner_uploads/" . $fileName : '#';
+                        ?>
+                        <div class="p-4 rounded-2xl border <?php echo $hasFile ? 'border-gray-100 bg-white' : 'border-dashed border-gray-200 bg-gray-50'; ?> flex flex-col items-center text-center gap-3 transition-all hover:shadow-md">
+                            <div class="w-10 h-10 rounded-full <?php echo $hasFile ? 'bg-primary/10 text-primary' : 'bg-gray-200 text-gray-400'; ?> flex items-center justify-center text-lg">
+                                <i class="fa-solid <?php echo $doc['icon']; ?>"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-bold text-gray-700 uppercase tracking-wide"><?php echo $doc['label']; ?></div>
+                                <?php if($hasFile): ?>
+                                    <a href="<?php echo $fileUrl; ?>" target="_blank" class="text-[10px] font-bold text-secondary hover:underline mt-1 block">View File</a>
+                                <?php else: ?>
+                                    <span class="text-[10px] font-bold text-gray-400 mt-1 block">Missing</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
 
                 <div class="pt-6 border-t border-gray-50">

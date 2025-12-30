@@ -24,3 +24,12 @@ ALTER TABLE owners
   ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP AFTER last_activity;
 
   ALTER TABLE owners MODIFY COLUMN status ENUM('active', 'disabled', 'pending', 'approved') DEFAULT 'pending';
+
+
+    
+
+ALTER TABLE owners 
+ADD COLUMN phone_number int(11) NOT NULL AFTER fullname,
+ADD COLUMN business_permit VARCHAR(255) DEFAULT NULL,
+ADD COLUMN valid_id VARCHAR(255) DEFAULT NULL,
+ADD COLUMN barangay_clearance VARCHAR(255) DEFAULT NULL;

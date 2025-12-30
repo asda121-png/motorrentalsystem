@@ -19,12 +19,6 @@ if (!isset($_SESSION['userid']) || ($_SESSION['role'] ?? '') !== 'owner') {
 $owner_id = $_SESSION['userid'];
 
 
-// Show pending/inactive notice if not active
-if ($account_status !== 'active') {
-    echo '<div style="background:#fff3cd;color:#856404;padding:16px;border-radius:8px;margin:16px 0;text-align:center;font-weight:bold;">'
-        . 'Notice: Your owner account is <b>' . htmlspecialchars($account_status) . '</b>. Some features may be limited until approved by admin.</div>';
-}
-
 // --- FETCH SUMMARY STATISTICS ---
 
 // 1. Total Fleet Count
@@ -51,20 +45,27 @@ include 'header.php';
 
 <!-- Content Wrapper -->
 <div class="max-w-[1600px] mx-auto">
-    <!-- Creative Hero Section -->
+    <!-- Creative Hero Section --><?php if ($account_status !== 'active'): ?>
+                    <div style="background:#fff3cd;color:#856404;padding:16px;border-radius:8px;margin:16px 0;text-align:center;font-weight:bold;">
+                        Notice: Your owner account is <b><?php echo htmlspecialchars($account_status); ?></b>. Some features may be limited until approved by admin.
+                    </div>
+                <?php endif; ?>
     <div class="relative bg-primary rounded-[2.5rem] p-8 md:p-12 mb-10 text-white overflow-hidden shadow-2xl shadow-primary/20">
         <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
             <div class="max-w-xl">
                 <div class="flex items-center gap-3 mb-6">
+                    
                     <div class="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
                         <span class="relative flex h-2 w-2">
                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
                             <span class="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
                         </span>
+                        
                         <span class="text-[10px] font-black uppercase tracking-widest text-white">System Active</span>
                     </div>
                     <span class="text-[10px] font-bold text-white/50 uppercase tracking-widest"><?php echo date('l, jS F'); ?></span>
                 </div>
+                
                 <h1 class="text-4xl md:text-5xl font-black tracking-tight leading-tight">Mati City <br/><span class="text-accent italic">Fleet Overview</span></h1>
                 <p class="text-white/60 font-medium mt-4 text-lg">Manage your rentals, track performance, and grow your motorcycle business with precision.</p>
             </div>

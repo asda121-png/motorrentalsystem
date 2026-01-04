@@ -113,7 +113,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_owner'])) {
 if (isset($_GET['verify_customer'])) {
     $target_id = (int)$_GET['verify_customer'];
     $check_docs = mysqli_query($conn, "SELECT email, fullname FROM customers WHERE userid=$target_id");
+    $check_docs = mysqli_query($conn, "SELECT email, fullname, profile_image, phone_number, drivers_license_image, valid_id_image FROM customers WHERE userid=$target_id");
     $doc_row = mysqli_fetch_assoc($check_docs);
+
+    // Check if required documents are uploaded
+    if (empty($doc_row['profile_image']) || empty($doc_row['phone_number']) || empty($doc_row['drivers_license_image']) || empty($doc_row['valid_id_image'])) {
+        header("Location: ?page=verify_customers&error=incomplete");
+        exit();
+    }
+
     mysqli_query($conn, "UPDATE customers SET status='active', is_verified=1 WHERE userid=$target_id");
     // Notify customer in-app
     create_notification($conn, $target_id, 'customer', 'Congratulations! Your account has been verified.', 'profile.php');
@@ -129,20 +137,22 @@ if (isset($_GET['verify_customer'])) {
     exit();
 }
 
-if (isset($_GET['reject_customer'])) {
-    $target_id = (int)$_GET['reject_customer'];
-    // Set status to disabled and notify
+if (isset($_GET['delete_customer'])) {
+    $target_id = (int)$_GET['delete_customer'];
+    // Get info for email before deletion
     $check = mysqli_query($conn, "SELECT email, fullname FROM customers WHERE userid=$target_id");
     $row = mysqli_fetch_assoc($check);
-    mysqli_query($conn, "UPDATE customers SET status='disabled', is_verified=0 WHERE userid=$target_id");
-    create_notification($conn, $target_id, 'customer', 'We regret to inform you that your account has been rejected. Please contact support for more information.', 'profile.php');
+    
     require_once __DIR__ . '/../smtp_mailer.php';
     $to = $row['email'];
-    $subject = 'Your Account Has Been Rejected';
+    $subject = 'Account Application Rejected';
     $message_body = '<p>Dear ' . htmlspecialchars($row['fullname']) . ',</p>'
-        . '<p>We regret to inform you that your account at Mati City Moto Rentals has been <b>rejected</b>. If you believe this is a mistake or wish to appeal, please contact our support team.</p>'
-        . '<p>Thank you for your interest.</p>';
+        . '<p>We regret to inform you that your account application at Mati City Moto Rentals has been declined and your data has been removed from our system.</p>';
     send_gmail($to, $subject, $message_body);
+
+    // Delete the customer
+    mysqli_query($conn, "DELETE FROM customers WHERE userid=$target_id");
+
     header("Location: ?page=verify_customers");
     exit();
 }
@@ -583,7 +593,7 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                                 <?php if (!$row['is_verified']): ?>
                                                     <a href="?verify_customer=<?= $row['userid'] ?>" class="btn btn-success"><i class="fa-solid fa-check"></i> Approve</a>
                                                 <?php endif; ?>
-                                                <a href="?reject_customer=<?= $row['userid'] ?>" onclick="return confirm('Are you sure you want to reject this customer?')" class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-xmark"></i> Reject</a>
+                                                <a href="?delete_customer=<?= $row['userid'] ?>" onclick="return confirm('Are you sure you want to delete this customer? This action cannot be undone.')" class="btn btn-outline" style="color: #ef4444;"><i class="fa-solid fa-trash"></i> Delete</a>
                                             </td>
                                         </tr>
                                     <?php endwhile;

@@ -61,6 +61,7 @@ $tables = [
     owner_id INT NOT NULL,
     model_name VARCHAR(100) NOT NULL,
     plate_number VARCHAR(20) NOT NULL UNIQUE,
+    registered_until DATE NULL,
     daily_rate DECIMAL(10, 2) NOT NULL,
     status ENUM('Available', 'Rented', 'Maintenance') DEFAULT 'Available',
     type VARCHAR(50) DEFAULT 'Scooter',
@@ -152,6 +153,12 @@ if (mysqli_num_rows($desc_check) == 0) {
 $maint_check = mysqli_query($conn, "SHOW COLUMNS FROM bikes LIKE 'next_maintenance'");
 if (mysqli_num_rows($maint_check) == 0) {
     mysqli_query($conn, "ALTER TABLE bikes ADD COLUMN next_maintenance DATE NULL AFTER status");
+}
+
+// Check for registered_until column
+$reg_check = mysqli_query($conn, "SHOW COLUMNS FROM bikes LIKE 'registered_until'");
+if (mysqli_num_rows($reg_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE bikes ADD COLUMN registered_until DATE NULL AFTER plate_number");
 }
 
 // --- OWNER SCHEMA UPDATES ---

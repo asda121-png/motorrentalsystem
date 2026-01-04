@@ -13,7 +13,10 @@ if (!isset($_GET['id'])) {
 }
 
 $bike_id = (int)$_GET['id'];
-$query = "SELECT * FROM bikes WHERE id = $bike_id";
+$query = "SELECT b.*, o.location as owner_location 
+          FROM bikes b 
+          JOIN owners o ON b.owner_id = o.ownerid 
+          WHERE b.id = $bike_id";
 $result = mysqli_query($conn, $query);
 $bike = mysqli_fetch_assoc($result);
 
@@ -186,7 +189,7 @@ $reviews_res = mysqli_query($conn, $reviews_query);
                             <span class="text-slate-400 font-medium text-xs ml-1">(<?php echo $total_reviews; ?> reviews)</span>
                         </div>
                         <div class="flex items-center gap-2 text-sm font-medium text-gray-500">
-                            <i class="fa-solid fa-location-dot text-accent"></i> Available in Mati City
+                            <i class="fa-solid fa-location-dot text-accent"></i> Available in <?php echo htmlspecialchars($bike['owner_location'] ?? 'Mati City'); ?>
                         </div>
                     </div>
                     <div class="flex items-end gap-2">
@@ -320,7 +323,10 @@ $reviews_res = mysqli_query($conn, $reviews_query);
 
     <script>
         const bikePrice = <?php echo $bike['daily_rate']; ?>;
-        
+        const pickupInput = document.getElementById('pickupDate');
+        const returnInput = document.getElementById('returnDate');
+        const sumTotal = document.getElementById('sumTotal');
+
         function showBookingForm() {
             document.getElementById('initialAction').classList.add('hidden');
             document.getElementById('bookingFormContainer').classList.remove('hidden');
@@ -335,12 +341,12 @@ $reviews_res = mysqli_query($conn, $reviews_query);
             e.preventDefault();
             const btn = e.target.querySelector('button');
             const originalText = btn.textContent;
-            
+
             btn.textContent = 'Processing Reservation...';
             btn.disabled = true;
 
             const formData = new FormData(e.target);
-            
+
             fetch('process_booking.php', {
                 method: 'POST',
                 body: formData
@@ -364,24 +370,45 @@ $reviews_res = mysqli_query($conn, $reviews_query);
             });
         }
 
-        // Simple calculation logic
-        const pickupInput = document.getElementById('pickupDate');
-        const returnInput = document.getElementById('returnDate');
-        const sumTotal = document.getElementById('sumTotal');
+        // Set minimum pickup date to now
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Adjust for local timezone
+        pickupInput.min = now.toISOString().slice(0,16);
 
         function updatePrice() {
-            if (!pickupInput.value || !returnInput.value) return;
-            
+            if (!pickupInput.value || !returnInput.value) {
+                sumTotal.textContent = '₱' + new Intl.NumberFormat('en-US').format(bikePrice);
+                return;
+            }
+
             const start = new Date(pickupInput.value);
             const end = new Date(returnInput.value);
-            const diffTime = Math.abs(end - start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            const total = (diffDays > 0 ? diffDays : 1) * bikePrice;
-            sumTotal.textContent = '₱' + total;
+            const diffTime = end - start;
+
+            if (diffTime > 0) {
+                // Calculate days, rounding up (minimum 1 day)
+                let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays < 1) diffDays = 1;
+
+                const total = diffDays * bikePrice;
+                sumTotal.textContent = '₱' + new Intl.NumberFormat('en-US').format(total);
+            } else {
+                // If dates are invalid, show base price for 1 day
+                sumTotal.textContent = '₱' + new Intl.NumberFormat('en-US').format(bikePrice);
+            }
         }
 
-        pickupInput.addEventListener('change', updatePrice);
+        pickupInput.addEventListener('change', () => {
+            if (pickupInput.value) {
+                // Set the minimum for the return date to be the pickup date
+                returnInput.min = pickupInput.value;
+                // If return date is now invalid, clear it to force re-selection
+                if (returnInput.value && new Date(returnInput.value) < new Date(pickupInput.value)) {
+                    returnInput.value = '';
+                }
+            }
+            updatePrice();
+        });
         returnInput.addEventListener('change', updatePrice);
     </script>
 

@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
     $daily_rate = (float)$_POST['daily_rate'];
     $fuel_level = (int)$_POST['fuel_level'];
     $next_maintenance = $_POST['next_maintenance'];
+    $registered_until = !empty($_POST['registered_until']) ? "'" . mysqli_real_escape_string($conn, $_POST['registered_until']) . "'" : "NULL";
 
     // Handle Image Upload
     $image_url = "NULL";
@@ -58,8 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
     } elseif ($daily_rate < 0) {
         $error_msg = "Daily rate cannot be less than 0.";
     } else {
-        $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, next_maintenance, image_url) 
-                       VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$next_maintenance', $image_url)";
+        $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, next_maintenance, registered_until, image_url) 
+                       VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$next_maintenance', $registered_until, $image_url)";
         
         // --- UPDATED ERROR HANDLING HERE ---
         try {
@@ -338,7 +339,12 @@ include 'header.php';
                                 </div>
                             </div>
                         </td>
-                        <td class="px-8 py-6"><span class="font-mono text-sm bg-slate-100 px-3 py-1 rounded-lg text-slate-600 font-bold"><?php echo htmlspecialchars($row['plate_number']); ?></span></td>
+                        <td class="px-8 py-6">
+                            <span class="font-mono text-sm bg-slate-100 px-3 py-1 rounded-lg text-slate-600 font-bold"><?php echo htmlspecialchars($row['plate_number']); ?></span>
+                            <?php if(!empty($row['registered_until'])): ?>
+                                <div class="text-[10px] font-medium text-slate-400 mt-1" title="Registration Expiry">Reg: <?php echo date('M Y', strtotime($row['registered_until'])); ?></div>
+                            <?php endif; ?>
+                        </td>
                         <td class="px-8 py-6">
                             <div class="text-xs text-slate-500">
                                 <div class="flex items-center gap-2 mb-1" title="Next Scheduled Maintenance">
@@ -495,6 +501,32 @@ include 'header.php';
                                 <input type="text" name="inclusions" placeholder="e.g. 2 Helmets, Raincoat" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
                             </div>
 
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label class="flex items-center gap-3 mb-3 cursor-pointer">
+                                    <input type="checkbox" id="is_registered" checked onchange="toggleRegistration()" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Unit is Registered</span>
+                                </label>
+                                <div id="reg_date_container">
+                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Registration Expiry</label>
+                                    <input type="date" name="registered_until" id="registered_until" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm bg-white">
+                                </div>
+                            </div>
+                            <script>
+                                function toggleRegistration() {
+                                    const isReg = document.getElementById('is_registered').checked;
+                                    const container = document.getElementById('reg_date_container');
+                                    const input = document.getElementById('registered_until');
+                                    if (isReg) {
+                                        container.style.display = 'block';
+                                        input.required = true;
+                                    } else {
+                                        container.style.display = 'none';
+                                        input.required = false;
+                                        input.value = '';
+                                    }
+                                }
+                            </script>
+
                             <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                                 <label class="block text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">Maintenance Check</label>
                                 <div>
@@ -579,6 +611,7 @@ include 'header.php';
                     
                     <input type="hidden" name="bike_id" id="rentBikeId">
                     <input type="hidden" name="manual_rent" value="1">
+                    <input type="hidden" id="hiddenDailyRate">
                     
                     <div class="space-y-4">
                         <div>
@@ -592,11 +625,11 @@ include 'header.php';
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Start Date</label>
-                                <input type="datetime-local" name="start_date" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                                <input type="datetime-local" name="start_date" id="rentStartDate" required onchange="calculateTotal()" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Return Date</label>
-                                <input type="datetime-local" name="end_date" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                                <input type="datetime-local" name="end_date" id="rentEndDate" required onchange="calculateTotal()" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
                             </div>
                         </div>
                         <div>
@@ -716,8 +749,33 @@ include 'header.php';
     function openRentModal(id, name, rate) {
         document.getElementById('rentBikeId').value = id;
         document.getElementById('rentBikeName').textContent = name;
+        document.getElementById('hiddenDailyRate').value = rate;
         document.getElementById('rentAmount').value = rate;
+        // Reset dates
+        document.getElementById('rentStartDate').value = '';
+        document.getElementById('rentEndDate').value = '';
         document.getElementById('rentUnitModal').classList.remove('hidden');
+    }
+
+    function calculateTotal() {
+        const startVal = document.getElementById('rentStartDate').value;
+        const endVal = document.getElementById('rentEndDate').value;
+        const rate = parseFloat(document.getElementById('hiddenDailyRate').value);
+        
+        if(startVal && endVal && rate) {
+            const start = new Date(startVal);
+            const end = new Date(endVal);
+            const diffTime = end - start;
+            
+            if (diffTime > 0) {
+                // Calculate days, rounding up (minimum 1 day)
+                let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays < 1) diffDays = 1;
+                
+                const total = diffDays * rate;
+                document.getElementById('rentAmount').value = total.toFixed(2);
+            }
+        }
     }
 
     function openRegisterModal() {

@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['fullname'] = $user['fullname'];
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['account_status'] = $user['status'];
+                $_SESSION['email'] = $user['email']; // Store email for autofill
 
                 // 3. Role-Based Redirection
                 if ($user['role'] === 'admin') {

@@ -231,16 +231,22 @@ $reviews_res = mysqli_query($conn, $reviews_query);
                     <form id="rentalForm" onsubmit="handleFinalBooking(event)" class="space-y-5">
                         <!-- Hidden Bike ID for Backend -->
                         <input type="hidden" name="bike_id" value="<?php echo $bike['id']; ?>">
-                        
+
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400">Full Name</label>
                             <input type="text" name="fullname" required placeholder="John Doe" value="<?php echo isset($_SESSION['fullname']) ? htmlspecialchars($_SESSION['fullname']) : ''; ?>" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700">
                         </div>
+
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold uppercase text-gray-400">Email</label>
+                            <input type="email" name="email" required placeholder="Email" value="<?php echo isset($_SESSION['email']) ? htmlspecialchars($_SESSION['email']) : ''; ?>" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700" readonly>
+                        </div>
+
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400">Phone Number</label>
                             <input type="tel" name="phone" required placeholder="09XX XXX XXXX" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700">
                         </div>
-                        
+
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-2">
                                 <label class="block text-xs font-bold uppercase text-gray-400">Pickup Date</label>

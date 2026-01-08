@@ -10,11 +10,16 @@ if (!$conn) {
 
 // Fetch User Profile Image if logged in
 $profile_image = null;
+$user_fullname = '';
+$user_email = '';
+
 if (isset($_SESSION['userid'])) {
     $uid = (int)$_SESSION['userid'];
-    $u_res = mysqli_query($conn, "SELECT profile_image, fullname FROM customers WHERE userid=$uid");
+    $u_res = mysqli_query($conn, "SELECT profile_image, fullname, email FROM customers WHERE userid=$uid");
     if ($u_res && $u_row = mysqli_fetch_assoc($u_res)) {
         $profile_image = $u_row['profile_image'];
+        $user_fullname = $u_row['fullname'];
+        $user_email = $u_row['email'];
     }
 
     // Fetch notifications
@@ -203,11 +208,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Your Name</label>
-                            <input type="text" name="name" class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold focus:outline-none focus:border-primary focus:bg-white transition-all" placeholder="John Doe">
+                            <input type="text" name="name" value="<?php echo htmlspecialchars($user_fullname); ?>" class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold focus:outline-none focus:border-primary focus:bg-white transition-all" placeholder="John Doe">
                         </div>
                         <div class="space-y-2">
                             <label class="block text-xs font-bold uppercase text-gray-400 tracking-widest ml-1">Email Address</label>
-                            <input type="email" name="email" class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold focus:outline-none focus:border-primary focus:bg-white transition-all" placeholder="john@example.com">
+                            <input type="email" name="email" value="<?php echo htmlspecialchars($user_email); ?>" class="w-full px-6 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-gray-700 font-bold focus:outline-none focus:border-primary focus:bg-white transition-all" placeholder="john@example.com">
                         </div>
                     </div>
 

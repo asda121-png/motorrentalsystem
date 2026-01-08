@@ -38,21 +38,29 @@ $profile_image = null;
 $unread_notif_count = 0;
 $user_status = null;
 $is_verified = 0;
+$cust_notif_res = null;
+$is_customer_logged_in = false;
+
 if (isset($_SESSION['userid'])) {
     $uid = (int)$_SESSION['userid'];
-    $u_res = mysqli_query($conn, "SELECT profile_image, status, is_verified FROM customers WHERE userid=$uid");
-    if ($u_res && $u_row = mysqli_fetch_assoc($u_res)) {
-        $profile_image = $u_row['profile_image'];
-        $user_status = $u_row['status'];
-        $is_verified = (int)$u_row['is_verified'];
+    $role = $_SESSION['role'] ?? 'customer';
+
+    if ($role === 'customer') {
+        $u_res = mysqli_query($conn, "SELECT profile_image, status, is_verified FROM customers WHERE userid=$uid");
+        if ($u_res && $u_row = mysqli_fetch_assoc($u_res)) {
+            $profile_image = $u_row['profile_image'];
+            $user_status = $u_row['status'];
+            $is_verified = (int)$u_row['is_verified'];
+            $is_customer_logged_in = true;
+
+            $unread_query = "SELECT COUNT(*) as count FROM notifications WHERE user_id = $uid AND user_type = 'customer' AND is_read = 0";
+            $unread_notif_count = mysqli_fetch_assoc(mysqli_query($conn, $unread_query))['count'];
+        
+            // Fetch actual notifications
+            $cust_notif_query = "SELECT * FROM notifications WHERE user_id = $uid AND user_type = 'customer' ORDER BY created_at DESC LIMIT 5";
+            $cust_notif_res = mysqli_query($conn, $cust_notif_query);
+        }
     }
-
-    $unread_query = "SELECT COUNT(*) as count FROM notifications WHERE user_id = $uid AND user_type = 'customer' AND is_read = 0";
-    $unread_notif_count = mysqli_fetch_assoc(mysqli_query($conn, $unread_query))['count'];
-
-    // Fetch actual notifications
-    $cust_notif_query = "SELECT * FROM notifications WHERE user_id = $uid AND user_type = 'customer' ORDER BY created_at DESC LIMIT 5";
-    $cust_notif_res = mysqli_query($conn, $cust_notif_query);
 }
 ?>
 <!DOCTYPE html>
@@ -100,14 +108,14 @@ if (isset($_SESSION['userid'])) {
                 
                 <div class="hidden md:flex gap-8 text-sm font-semibold uppercase tracking-wider text-primary items-center">
                     <a href="index.php" class="hover:text-accent transition">Home</a>
-                    <?php if(isset($_SESSION['userid'])): ?>
+                    <?php if($is_customer_logged_in): ?>
                         <a href="mybooks.php" class="hover:text-accent transition">My Bookings</a>
                     <?php endif; ?>
                     <a href="contact.php" class="hover:text-accent transition">Contact</a>
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <?php if(isset($_SESSION['userid'])): ?>
+                    <?php if($is_customer_logged_in): ?>
                         <div class="relative">
                             <button onclick="toggleNotif('custNotif')" class="relative text-slate-400 hover:text-primary transition-colors">
                                 <i class="fa-regular fa-bell text-xl"></i>
@@ -128,6 +136,8 @@ if (isset($_SESSION['userid'])) {
                                 <?php endif; ?>
                             </div>
                         </div>
+                    <?php endif; ?>
+                    <?php if(isset($_SESSION['userid'])): ?>
                         <div class="relative">
                             <button onclick="toggleProfileMenu()" class="flex items-center gap-3 focus:outline-none">
                                 <span class="hidden md:block text-sm font-bold text-gray-600">Hi, <?php echo htmlspecialchars($_SESSION['fullname']); ?></span>
@@ -177,7 +187,7 @@ if (isset($_SESSION['userid'])) {
     <!-- Content -->
     <main class="max-w-7xl mx-auto px-4 py-12">
         
-        <?php if(isset($_SESSION['userid']) && $is_verified != 1): ?>
+        <?php if($is_customer_logged_in && $is_verified != 1): ?>
         <div class="bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-100 border-l-8 border-amber-600 p-6 mb-10 rounded-2xl flex items-center gap-5 shadow-lg animate-pulse-slow">
             <div class="text-amber-600 flex-shrink-0">
                 <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
@@ -257,13 +267,13 @@ if (isset($_SESSION['userid'])) {
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path></svg>
                                 </span>
                             </div>
-                            <?php if (isset($_SESSION['userid']) && $is_verified != 1): ?>
+                            <?php if ($is_customer_logged_in && $is_verified != 1): ?>
                                 <button type="button" onclick="alert('Your account is pending verification. Please wait for an admin to approve it.')" class="px-6 py-2.5 rounded-xl bg-gray-300 text-gray-600 font-bold cursor-not-allowed shadow-sm text-sm">
                                     Verification Pending
                                 </button>
                             <?php else: ?>
                                 <a href="book.php?id=<?php echo $bike['id']; ?>" class="px-6 py-2.5 rounded-xl bg-secondary hover:bg-primary text-white font-bold transition-all shadow-md active:scale-95 text-sm">
-                                    <?php echo isset($_SESSION['userid']) ? 'Book Ride' : 'View Details'; ?>
+                                    <?php echo $is_customer_logged_in ? 'Book Ride' : 'View Details'; ?>
                                 </a>
                             <?php endif; ?>
                         </div>

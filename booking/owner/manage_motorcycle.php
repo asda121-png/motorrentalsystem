@@ -218,6 +218,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pickup_unit'])) {
     exit();
 }
 
+// --- HANDLE DELETE UNIT (POST) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_unit'])) {
+    $bike_id = (int)$_POST['bike_id'];
+    $owner_id = $_SESSION['userid'];
+
+    // Verify ownership and status
+    $check_query = "SELECT status FROM bikes WHERE id=$bike_id AND owner_id=$owner_id";
+    $check_res = mysqli_query($conn, $check_query);
+    
+    if ($check_res && mysqli_num_rows($check_res) > 0) {
+        $bike_data = mysqli_fetch_assoc($check_res);
+        // Prevent deletion if currently rented or reserved
+        if (in_array($bike_data['status'], ['Rented', 'Reserved'])) {
+             $error_msg = "Cannot delete a motorcycle that is currently Rented or Reserved.";
+        } else {
+            try {
+                $delete_sql = "DELETE FROM bikes WHERE id=$bike_id";
+                if (mysqli_query($conn, $delete_sql)) {
+                    header("Location: manage_motorcycle.php?msg=deleted");
+                    exit();
+                }
+            } catch (mysqli_sql_exception $e) {
+                $error_msg = "Cannot delete this unit because it has associated rental history. Consider setting status to 'Maintenance' instead.";
+            }
+        }
+    } else {
+        $error_msg = "Invalid unit or permission denied.";
+    }
+}
+
 include 'header.php';
 ?>
 
@@ -239,6 +269,7 @@ include 'header.php';
             if ($_GET['msg'] == 'updated') echo "Motorcycle status updated successfully.";
             if ($_GET['msg'] == 'picked_up') echo "Motorcycle picked up! Status updated to 'Rented'.";
             if ($_GET['msg'] == 'cust_registered') echo "Customer registered successfully! Please wait for Admin verification.";
+            if ($_GET['msg'] == 'deleted') echo "Motorcycle unit deleted successfully.";
         ?>
         </span>
     </div>
@@ -359,7 +390,7 @@ include 'header.php';
                                 <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
                                 <input type="hidden" name="update_status" value="1">
                                 <select name="status" onchange="this.form.submit()" class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border-none focus:ring-0 cursor-pointer <?php echo $status_color; ?>">
-                                    <?php foreach(['Available', 'Reserved', 'Rented', 'Maintenance'] as $s): ?>
+                                    <?php foreach(['Available', 'Maintenance'] as $s): ?>
                                         <option value="<?php echo $s; ?>" <?php echo $row['status'] === $s ? 'selected' : ''; ?>><?php echo $s; ?></option>
                                     <?php endforeach; ?>
                                 </select>
@@ -374,6 +405,13 @@ include 'header.php';
                                    class="inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary-hover transition-colors shadow-md shadow-primary/20">
                                     <i class="fa-solid fa-hand-holding-dollar"></i> Rent Now
                                 </button>
+                                <form action="manage_motorcycle.php" method="POST" class="inline-block ml-1" onsubmit="return confirm('Are you sure you want to delete this unit? This cannot be undone.');">
+                                    <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="delete_unit" value="1">
+                                    <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors" title="Delete Unit">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
                             <?php elseif ($row['status'] == 'Reserved'): ?>
                                 <form action="manage_motorcycle.php" method="POST" class="inline-block">
                                     <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
@@ -392,7 +430,16 @@ include 'header.php';
                                     <i class="fa-solid fa-arrow-rotate-left"></i> Return & Inspect
                                 </button>
                             <?php else: ?>
-                                <span class="text-slate-300 text-xs font-bold italic">Unavailable</span>
+                                <div class="flex items-center justify-end gap-2">
+                                    <span class="text-slate-300 text-xs font-bold italic mr-2">Unavailable</span>
+                                    <form action="manage_motorcycle.php" method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this unit? This cannot be undone.');">
+                                        <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
+                                        <input type="hidden" name="delete_unit" value="1">
+                                        <button type="submit" class="inline-flex items-center justify-center w-8 h-8 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors" title="Delete Unit">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             <?php endif; ?>
                         </td>
                     </tr>

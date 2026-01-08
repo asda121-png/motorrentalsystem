@@ -14,6 +14,18 @@ try {
     die("Database connection failed. Please contact support.");
 }
 
+// Redirect if already logged in
+if (isset($_SESSION['userid'])) {
+    if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
+        header("Location: admin/dashboard.php");
+    } elseif (isset($_SESSION['role']) && $_SESSION['role'] === 'owner') {
+        header("Location: owner/dashboard.php");
+    } else {
+        header("Location: index.php");
+    }
+    exit();
+}
+
 // 2. Process Login Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');

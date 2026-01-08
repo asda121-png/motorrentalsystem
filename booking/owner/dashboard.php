@@ -228,7 +228,7 @@ include 'header.php';
                     <div class="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
                         <i class="fa-solid fa-bell text-lg"></i>
                     </div>
-                    <span class="text-[10px] font-black uppercase tracking-widest">Inquiries</span>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Request</span>
                 </a>
                 <a href="income.php" class="bg-white border border-slate-100 p-6 rounded-[2rem] text-primary flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm col-span-2">
                     <div class="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">

@@ -87,7 +87,7 @@ include 'header.php';
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <?php
     // Fetch only Pending rentals
-    $query = "SELECT r.*, b.model_name, b.plate_number, c.fullname as customer_name, c.profile_image, c.is_verified 
+    $query = "SELECT r.*, b.model_name, b.plate_number, c.fullname as customer_name, c.profile_image, c.is_verified, c.email, c.phone_number, c.drivers_license_image, c.valid_id_image 
               FROM rentals r 
               JOIN bikes b ON r.bike_id = b.id 
               LEFT JOIN customers c ON r.customer_id = c.userid
@@ -97,6 +97,15 @@ include 'header.php';
 
     if (mysqli_num_rows($res) > 0) {
         while($row = mysqli_fetch_assoc($res)) {
+            $cust_data = [
+                'name' => $row['customer_name'],
+                'email' => $row['email'],
+                'phone' => $row['phone_number'],
+                'img' => $row['profile_image'],
+                'license' => $row['drivers_license_image'],
+                'valid_id' => $row['valid_id_image'],
+                'verified' => $row['is_verified']
+            ];
             ?>
             <div class="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 flex flex-col">
                 <div class="flex justify-between items-start mb-6">
@@ -119,6 +128,9 @@ include 'header.php';
                                     <i class="fa-solid fa-circle-exclamation"></i> Unverified
                                 </div>
                             <?php endif; ?>
+                            <button onclick='viewCustomer(<?php echo json_encode($cust_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)' class="mt-2 text-xs font-bold text-slate-500 hover:text-primary flex items-center gap-1 transition-colors">
+                                <i class="fa-solid fa-eye"></i> View Details
+                            </button>
                         </div>
                     </div>
                     <div class="text-right">
@@ -151,7 +163,7 @@ include 'header.php';
                     </a>
                     <a href="rental_requests.php?action=approve&id=<?php echo $row['id']; ?>" 
                        class="py-4 rounded-xl bg-primary text-white font-bold text-center shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all"
-                       onclick="return confirm('Approve and collect cash?')">
+                       onclick="return confirm('Approve the booking?')">
                         Approve
                     </a>
                 </div>
@@ -189,5 +201,107 @@ include 'header.php';
         </div>
     </div>
 </div>
+
+<!-- Customer Detail Modal -->
+<div id="customerModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4 text-center">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-black text-slate-800">Customer Details</h3>
+                    <button onclick="document.getElementById('customerModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                
+                <div class="text-center mb-6">
+                    <div class="w-24 h-24 rounded-full bg-slate-100 mx-auto mb-3 overflow-hidden border-4 border-slate-50 shadow-sm flex items-center justify-center">
+                        <img id="modalImg" src="" class="w-full h-full object-cover hidden">
+                        <div id="modalInitial" class="text-3xl font-black text-slate-300 hidden"></div>
+                    </div>
+                    <h4 id="modalName" class="text-lg font-bold text-slate-800"></h4>
+                    <div id="modalVerified" class="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mt-1"></div>
+                </div>
+
+                <div class="space-y-4 text-sm">
+                    <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                        <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-slate-400 shadow-sm"><i class="fa-solid fa-envelope"></i></div>
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">Email</div>
+                            <div id="modalEmail" class="font-bold text-slate-700"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                        <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-slate-400 shadow-sm"><i class="fa-solid fa-phone"></i></div>
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase">Phone</div>
+                            <div id="modalPhone" class="font-bold text-slate-700"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 grid grid-cols-2 gap-3">
+                    <a id="modalLicense" href="#" target="_blank" class="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-slate-300 hover:border-primary hover:bg-primary/5 transition-all group">
+                        <i class="fa-solid fa-id-card text-2xl text-slate-300 group-hover:text-primary mb-2"></i>
+                        <span class="text-[10px] font-bold text-slate-500 group-hover:text-primary">View License</span>
+                    </a>
+                    <a id="modalValidId" href="#" target="_blank" class="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-slate-300 hover:border-primary hover:bg-primary/5 transition-all group">
+                        <i class="fa-solid fa-address-card text-2xl text-slate-300 group-hover:text-primary mb-2"></i>
+                        <span class="text-[10px] font-bold text-slate-500 group-hover:text-primary">View Valid ID</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function viewCustomer(data) {
+    document.getElementById('modalName').textContent = data.name;
+    document.getElementById('modalEmail').textContent = data.email;
+    document.getElementById('modalPhone').textContent = data.phone || 'N/A';
+    
+    const img = document.getElementById('modalImg');
+    const initial = document.getElementById('modalInitial');
+    
+    if (data.img) {
+        img.src = '../' + data.img;
+        img.classList.remove('hidden');
+        initial.classList.add('hidden');
+    } else {
+        img.classList.add('hidden');
+        initial.classList.remove('hidden');
+        initial.textContent = data.name.charAt(0).toUpperCase();
+    }
+
+    const badge = document.getElementById('modalVerified');
+    if (data.verified == 1) {
+        badge.className = 'inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mt-1 bg-emerald-100 text-emerald-600';
+        badge.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i> Verified';
+    } else {
+        badge.className = 'inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mt-1 bg-amber-100 text-amber-600';
+        badge.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i> Unverified';
+    }
+
+    const licBtn = document.getElementById('modalLicense');
+    if (data.license) {
+        licBtn.href = '../' + data.license;
+        licBtn.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+        licBtn.href = '#';
+        licBtn.classList.add('opacity-50', 'pointer-events-none');
+    }
+
+    const idBtn = document.getElementById('modalValidId');
+    if (data.valid_id) {
+        idBtn.href = '../' + data.valid_id;
+        idBtn.classList.remove('opacity-50', 'pointer-events-none');
+    } else {
+        idBtn.href = '#';
+        idBtn.classList.add('opacity-50', 'pointer-events-none');
+    }
+
+    document.getElementById('customerModal').classList.remove('hidden');
+}
+</script>
 
 <?php include 'footer.php'; ?>

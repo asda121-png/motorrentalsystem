@@ -48,6 +48,9 @@ include 'header.php';
     <!-- Creative Hero Section --><?php if ($account_status !== 'active'): ?>
                     <div style="background:#fff3cd;color:#856404;padding:16px;border-radius:8px;margin:16px 0;text-align:center;font-weight:bold;">
                         Notice: Your owner account is <b><?php echo htmlspecialchars($account_status); ?></b>. Some features may be limited until approved by admin.
+                        <form action="delete_account.php" method="POST" onsubmit="return confirm('Are you sure you want to delete your account? This action cannot be undone.');" style="display:inline-block; margin-left:15px;">
+                            <button type="submit" style="color:#dc2626; text-decoration:underline; background:none; border:none; font-weight:bold; cursor:pointer;">Delete Account</button>
+                        </form>
                     </div>
                 <?php endif; ?>
     <div class="relative bg-primary rounded-[2.5rem] p-8 md:p-12 mb-10 text-white overflow-hidden shadow-2xl shadow-primary/20">

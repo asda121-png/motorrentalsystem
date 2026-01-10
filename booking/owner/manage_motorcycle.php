@@ -35,6 +35,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
     $next_maintenance = $_POST['next_maintenance'];
     $registered_until = !empty($_POST['registered_until']) ? "'" . mysqli_real_escape_string($conn, $_POST['registered_until']) . "'" : "NULL";
 
+    // New Fields
+    $year_model = (int)$_POST['year_model'];
+    $color = mysqli_real_escape_string($conn, $_POST['color']);
+    $security_deposit = (float)$_POST['security_deposit'];
+    $security_deposit_rules = mysqli_real_escape_string($conn, $_POST['security_deposit_rules']);
+    $overtime_fee = (float)$_POST['overtime_fee'];
+    $fuel_policy = mysqli_real_escape_string($conn, $_POST['fuel_policy']);
+    $late_penalty = (float)$_POST['late_penalty'];
+    $pickup_location = mysqli_real_escape_string($conn, $_POST['pickup_location']);
+    $fuel_type = mysqli_real_escape_string($conn, $_POST['fuel_type']);
+    $engine_capacity = mysqli_real_escape_string($conn, $_POST['engine_capacity']);
+    $max_speed = mysqli_real_escape_string($conn, $_POST['max_speed']);
+    $mileage = mysqli_real_escape_string($conn, $_POST['mileage']);
+    $displacement = (int)$_POST['displacement'];
+    $insurance_coverage = mysqli_real_escape_string($conn, $_POST['insurance_coverage']);
+    $condition_status = mysqli_real_escape_string($conn, $_POST['condition_status']);
+    $last_maintenance = !empty($_POST['last_maintenance']) ? "'" . mysqli_real_escape_string($conn, $_POST['last_maintenance']) . "'" : "NULL";
+
     // Handle Image Upload
     $image_url = "NULL";
     if (isset($_FILES['bike_image']) && $_FILES['bike_image']['error'] == 0) {
@@ -59,8 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_unit'])) {
     } elseif ($daily_rate < 0) {
         $error_msg = "Daily rate cannot be less than 0.";
     } else {
-        $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, next_maintenance, registered_until, image_url) 
-                       VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$next_maintenance', $registered_until, $image_url)";
+        $insert_sql = "INSERT INTO bikes (owner_id, model_name, plate_number, type, transmission, inclusions, description, daily_rate, status, fuel_level, next_maintenance, registered_until, image_url, year_model, color, security_deposit, security_deposit_rules, overtime_fee, fuel_policy, late_penalty, pickup_location, fuel_type, engine_capacity, max_speed, mileage, displacement, insurance_coverage, condition_status, last_maintenance) 
+                       VALUES ('$owner_id', '$model_name', '$plate_number', '$type', '$transmission', '$inclusions', '$description', '$daily_rate', 'Available', '$fuel_level', '$next_maintenance', $registered_until, $image_url, '$year_model', '$color', '$security_deposit', '$security_deposit_rules', '$overtime_fee', '$fuel_policy', '$late_penalty', '$pickup_location', '$fuel_type', '$engine_capacity', '$max_speed', '$mileage', '$displacement', '$insurance_coverage', '$condition_status', $last_maintenance)";
         
         // --- UPDATED ERROR HANDLING HERE ---
         try {
@@ -89,11 +107,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['return_unit'])) {
     $damage_notes = mysqli_real_escape_string($conn, $_POST['damage_notes']);
     $repair_cost = (float)$_POST['repair_cost'];
     
+    // Capture new return details
+    $fuel_level = isset($_POST['fuel_level']) ? (int)$_POST['fuel_level'] : 100;
+    $condition_status = isset($_POST['condition_status']) ? mysqli_real_escape_string($conn, $_POST['condition_status']) : 'Good';
+    
     // Determine status: If there is a repair cost, set to Maintenance, otherwise Available.
     $new_status = ($repair_cost > 0) ? 'Maintenance' : 'Available';
 
     // 1. Update Bike Status
-    mysqli_query($conn, "UPDATE bikes SET status='$new_status' WHERE id=$bike_id");
+    mysqli_query($conn, "UPDATE bikes SET status='$new_status', fuel_level='$fuel_level', condition_status='$condition_status' WHERE id=$bike_id");
 
     // 2. Close the Rental Record (Find the active one)
     $active_rental_query = "SELECT id FROM rentals WHERE bike_id=$bike_id AND status='Active' ORDER BY id DESC LIMIT 1";
@@ -386,18 +408,24 @@ include 'header.php';
                         </td>
                         <td class="px-8 py-6 font-black text-slate-700">₱<?php echo number_format($row['daily_rate'], 0); ?></td>
                         <td class="px-8 py-6">
-                            <form action="manage_motorcycle.php" method="POST" class="inline-block">
-                                <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
-                                <input type="hidden" name="update_status" value="1">
-                                <select name="status" onchange="this.form.submit()" class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border-none focus:ring-0 cursor-pointer <?php echo $status_color; ?>">
-                                    <?php foreach(['Available', 'Maintenance'] as $s): ?>
-                                        <option value="<?php echo $s; ?>" <?php echo $row['status'] === $s ? 'selected' : ''; ?>><?php echo $s; ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <?php if($is_overdue): ?>
-                                    <div class="mt-1 text-[10px] font-bold text-red-500 uppercase tracking-wider text-center"><i class="fa-solid fa-triangle-exclamation"></i> Late</div>
-                                <?php endif; ?>
-                            </form>
+                            <?php if (in_array($row['status'], ['Rented', 'Reserved'])): ?>
+                                <div class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest text-center <?php echo $status_color; ?>">
+                                    <?php echo htmlspecialchars($row['status']); ?>
+                                </div>
+                            <?php else: ?>
+                                <form action="manage_motorcycle.php" method="POST" class="inline-block">
+                                    <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
+                                    <input type="hidden" name="update_status" value="1">
+                                    <select name="status" onchange="this.form.submit()" class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border-none focus:ring-0 cursor-pointer <?php echo $status_color; ?>">
+                                        <?php foreach(['Available', 'Maintenance'] as $s): ?>
+                                            <option value="<?php echo $s; ?>" <?php echo $row['status'] === $s ? 'selected' : ''; ?>><?php echo $s; ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </form>
+                            <?php endif; ?>
+                            <?php if($is_overdue): ?>
+                                <div class="mt-1 text-[10px] font-bold text-red-500 uppercase tracking-wider text-center"><i class="fa-solid fa-triangle-exclamation"></i> Late</div>
+                            <?php endif; ?>
                         </td>
                         <td class="px-8 py-6 text-right">
                             <?php if ($row['status'] == 'Available'): ?>
@@ -413,14 +441,10 @@ include 'header.php';
                                     </button>
                                 </form>
                             <?php elseif ($row['status'] == 'Reserved'): ?>
-                                <form action="manage_motorcycle.php" method="POST" class="inline-block">
-                                    <input type="hidden" name="bike_id" value="<?php echo $row['id']; ?>">
-                                    <input type="hidden" name="rental_id" value="<?php echo $row['rental_id']; ?>">
-                                    <input type="hidden" name="pickup_unit" value="1">
-                                    <button type="submit" class="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors shadow-md shadow-purple-200">
-                                        <i class="fa-solid fa-key"></i> Pick Up
-                                    </button>
-                                </form>
+                                <button onclick="openPickupModal(<?php echo $row['id']; ?>, <?php echo $row['rental_id']; ?>, '<?php echo htmlspecialchars($row['model_name']); ?>')" 
+                                   class="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors shadow-md shadow-purple-200">
+                                    <i class="fa-solid fa-key"></i> Pick Up
+                                </button>
                             <?php elseif ($row['status'] == 'Rented'): ?>
                                 <button onclick='openViewModal(<?php echo $rental_json; ?>)' class="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors mr-1" title="View Details">
                                     <i class="fa-solid fa-eye"></i>
@@ -470,82 +494,138 @@ include 'header.php';
 <div id="addUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
-        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-[2rem] bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
+        <div class="flex min-h-full items-center justify-center p-4 text-center">
+            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-[2rem] bg-white text-left shadow-2xl transition-all w-full max-w-6xl my-8">
                 
                 <div class="bg-white px-8 pb-8 pt-8">
-                    <div class="mb-8 border-b border-slate-100 pb-5">
+                    <div class="mb-6 border-b border-slate-100 pb-5">
                         <h3 class="text-2xl font-black text-slate-800 tracking-tight">Add New Motorcycle</h3>
                         <p class="text-sm text-slate-500 font-medium mt-1">Fill in the vehicle specifications to expand your fleet.</p>
                     </div>
                     
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         
-                        <div class="space-y-6">
-                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">
-                                <i class="fa-solid fa-motorcycle"></i> Vehicle Identity
+                        <!-- COLUMN 1: Basic Vehicle Information -->
+                        <div class="space-y-5">
+                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2">
+                                <i class="fa-solid fa-motorcycle"></i> Basic Vehicle Info
                             </div>
                             
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Model Name</label>
-                                <input type="text" name="model_name" required placeholder="e.g. Yamaha NMAX 155" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Model Name</label>
+                                <input type="text" name="model_name" required placeholder="e.g. Yamaha NMAX 155" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Plate No.</label>
-                                    <input type="text" name="plate_number" required placeholder="ABC 123" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Year Model</label>
+                                    <input type="number" name="year_model" placeholder="2024" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Type</label>
-                                    <div class="relative">
-                                        <select name="type" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary appearance-none shadow-sm">
-                                            <option value="Scooter">Scooter</option>
-                                            <option value="Underbone">Underbone</option>
-                                            <option value="Big Bike">Big Bike</option>
-                                        </select>
-                                        <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                                    </div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Color</label>
+                                    <input type="text" name="color" placeholder="Matte Black" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                                 </div>
                             </div>
 
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Transmission</label>
-                                <div class="relative">
-                                    <select name="transmission" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary appearance-none shadow-sm">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Plate No.</label>
+                                    <input type="text" name="plate_number" required placeholder="ABC 123" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Type</label>
+                                    <select name="type" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                        <option value="Scooter">Scooter</option>
+                                        <option value="Underbone">Underbone</option>
+                                        <option value="Big Bike">Big Bike</option>
+                                        <option value="Sports">Sports</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Transmission</label>
+                                    <select name="transmission" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                                         <option value="Automatic">Automatic</option>
                                         <option value="Manual">Manual</option>
-                                        <option value="Semi-Automatic">Semi-Automatic</option>
+                                        <option value="Semi-Automatic">Semi-Auto</option>
                                     </select>
-                                    <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Fuel Type</label>
+                                    <select name="fuel_type" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                        <option value="Gasoline">Gasoline</option>
+                                        <option value="Diesel">Diesel</option>
+                                        <option value="Electric">Electric</option>
+                                    </select>
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Description</label>
-                                <textarea name="description" rows="3" placeholder="Color, features, condition..." class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary resize-none shadow-sm"></textarea>
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Main Vehicle Image</label>
+                                <label class="flex items-center gap-4 w-full cursor-pointer group p-3 rounded-xl border border-dashed border-slate-300 hover:border-primary hover:bg-slate-50 transition-all">
+                                    <div class="bg-primary/10 text-primary w-10 h-10 rounded-lg flex items-center justify-center transition-colors">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <span class="block text-xs font-bold text-slate-700 group-hover:text-primary">Upload Image</span>
+                                        <span id="fileName" class="block text-[10px] text-slate-400">PNG, JPG up to 5MB</span>
+                                    </div>
+                                    <input type="file" name="bike_image" accept="image/*" class="hidden" onchange="document.getElementById('fileName').textContent = this.files[0] ? this.files[0].name : 'File selected'">
+                                </label>
                             </div>
                         </div>
 
-                        <div class="space-y-6">
-                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">
-                                <i class="fa-solid fa-file-contract"></i> Rental & Status
+                        <!-- COLUMN 2: Technical Specs & Condition -->
+                        <div class="space-y-5">
+                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2">
+                                <i class="fa-solid fa-screwdriver-wrench"></i> Technical Specs
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Daily Rate (₱)</label>
-                                    <input type="number" name="daily_rate" min="0" required placeholder="0.00" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Displacement (cc)</label>
+                                    <input type="number" name="displacement" placeholder="155" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Fuel (%)</label>
-                                    <input type="number" name="fuel_level" value="100" max="100" min="0" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Engine Cap.</label>
+                                    <input type="text" name="engine_capacity" placeholder="155cc" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Max Speed</label>
+                                    <input type="text" name="max_speed" placeholder="120 km/h" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Mileage</label>
+                                    <input type="text" name="mileage" placeholder="45 km/L" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Inclusions</label>
-                                <input type="text" name="inclusions" placeholder="e.g. 2 Helmets, Raincoat" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm">
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Current Condition</label>
+                                <select name="condition_status" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                    <option value="Excellent">Excellent (Like New)</option>
+                                    <option value="Good" selected>Good (Minor Wear)</option>
+                                    <option value="Fair">Fair (Visible Wear)</option>
+                                </select>
+                            </div>
+
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label class="block text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">Maintenance Log</label>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <span class="text-[10px] font-bold text-slate-500 mb-1 block">Last Maintenance</span>
+                                        <input type="date" name="last_maintenance" class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2 focus:border-primary focus:ring-primary">
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] font-bold text-slate-500 mb-1 block">Next Due</span>
+                                        <input type="date" name="next_maintenance" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2 focus:border-primary focus:ring-primary">
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -554,8 +634,8 @@ include 'header.php';
                                     <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Unit is Registered</span>
                                 </label>
                                 <div id="reg_date_container">
-                                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Registration Expiry</label>
-                                    <input type="date" name="registered_until" id="registered_until" required class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3.5 focus:border-primary focus:ring-primary shadow-sm bg-white">
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide">Registration Expiry</label>
+                                    <input type="date" name="registered_until" id="registered_until" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2 focus:border-primary focus:ring-primary bg-white">
                                 </div>
                             </div>
                             <script>
@@ -573,27 +653,69 @@ include 'header.php';
                                     }
                                 }
                             </script>
+                        </div>
 
-                            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                                <label class="block text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest">Maintenance Check</label>
+                        <!-- COLUMN 3: Rental Terms & Financials -->
+                        <div class="space-y-5">
+                            <div class="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest border-b border-slate-100 pb-2">
+                                <i class="fa-solid fa-file-invoice-dollar"></i> Rental Terms
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <span class="text-xs font-bold text-slate-500 mb-1 block">Next Scheduled Maintenance</span>
-                                    <input type="date" name="next_maintenance" required class="w-full rounded-lg border-slate-200 text-xs font-bold text-slate-700 p-2.5 focus:border-primary focus:ring-primary">
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Daily Rate (₱)</label>
+                                    <input type="number" name="daily_rate" min="0" required placeholder="0.00" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Security Dep. (₱)</label>
+                                    <input type="number" name="security_deposit" min="0" placeholder="0.00" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
                                 </div>
                             </div>
-                            
+
                             <div>
-                                 <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Motorcycle Image</label>
-                                 <label class="flex items-center gap-4 w-full cursor-pointer group p-3 rounded-xl border border-dashed border-slate-300 hover:border-primary hover:bg-slate-50 transition-all">
-                                    <div class="bg-primary/10 text-primary w-10 h-10 rounded-lg flex items-center justify-center transition-colors">
-                                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                                    </div>
-                                    <div class="flex-1">
-                                        <span class="block text-xs font-bold text-slate-700 group-hover:text-primary">Upload Image</span>
-                                        <span id="fileName" class="block text-[10px] text-slate-400">PNG, JPG up to 5MB</span>
-                                    </div>
-                                    <input type="file" name="bike_image" accept="image/*" class="hidden" onchange="document.getElementById('fileName').textContent = this.files[0] ? this.files[0].name : 'File selected'">
-                                 </label>
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Deposit Rules</label>
+                                <textarea name="security_deposit_rules" rows="2" placeholder="e.g. Refundable upon return" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary resize-none shadow-sm"></textarea>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Overtime Fee (₱/hr)</label>
+                                    <input type="number" name="overtime_fee" min="0" placeholder="0.00" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Late Penalty (₱)</label>
+                                    <input type="number" name="late_penalty" min="0" placeholder="0.00" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Fuel Policy</label>
+                                    <select name="fuel_policy" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                        <option value="Full-to-Full">Full-to-Full</option>
+                                        <option value="Same-to-Same">Same Level</option>
+                                        <option value="Empty-to-Empty">Empty</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Current Fuel (%)</label>
+                                    <input type="number" name="fuel_level" value="100" max="100" min="0" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Pickup & Return Location</label>
+                                <input type="text" name="pickup_location" placeholder="e.g. Shop Address or City Center" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Inclusions</label>
+                                <input type="text" name="inclusions" placeholder="e.g. 2 Helmets, Raincoat" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary shadow-sm">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Insurance Coverage</label>
+                                <textarea name="insurance_coverage" rows="2" placeholder="e.g. Third Party Liability Only" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 p-3 focus:border-primary focus:ring-primary resize-none shadow-sm"></textarea>
                             </div>
                         </div>
                     </div>
@@ -613,10 +735,10 @@ include 'header.php';
 <div id="returnUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
-        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+        <div class="flex min-h-full items-center justify-center p-4 text-center">
+            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all w-full max-w-2xl">
                 <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                    <div class="mb-6">
+                    <div class="mb-6 border-b border-slate-100 pb-4">
                         <h3 class="text-xl font-black text-slate-800">Return Inspection</h3>
                         <p class="text-sm text-slate-500">Processing return for: <span id="returnBikeName" class="font-bold text-primary"></span></p>
                     </div>
@@ -624,21 +746,61 @@ include 'header.php';
                     <input type="hidden" name="bike_id" id="returnBikeId">
                     <input type="hidden" name="return_unit" value="1">
                     
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Damage Report / Notes</label>
-                            <textarea name="damage_notes" rows="3" placeholder="Describe any scratches, dents, or issues..." class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary"></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Return Checklist</p>
+                                <label class="flex items-center gap-3 cursor-pointer mb-2 group">
+                                    <input type="checkbox" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                    <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Helmet(s) Returned</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer mb-2 group">
+                                    <input type="checkbox" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                    <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Keys Returned</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                    <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Accessories (Raincoat/Tools)</span>
+                                </label>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Fuel Level (%)</label>
+                                    <input type="number" name="fuel_level" value="100" max="100" min="0" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Condition</label>
+                                    <select name="condition_status" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                                        <option value="Excellent">Excellent</option>
+                                        <option value="Good" selected>Good</option>
+                                        <option value="Fair">Fair</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Repair Cost / Penalty (₱)</label>
-                            <input type="number" name="repair_cost" value="0" min="0" step="0.01" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
-                            <p class="text-[10px] text-slate-400 mt-1">Leave as 0 if unit is in good condition.</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Damage Report / Notes</label>
+                                <textarea name="damage_notes" rows="5" placeholder="Describe any scratches, dents, or issues..." class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Repair Cost / Penalty (₱)</label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
+                                    <input type="number" name="repair_cost" value="0" min="0" step="0.01" class="w-full pl-8 rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-1">Leave as 0 if unit is in good condition.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                    <button type="submit" class="inline-flex w-full justify-center rounded-xl bg-primary px-3 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-hover sm:ml-3 sm:w-auto">Confirm Return</button>
-                    <button type="button" onclick="document.getElementById('returnUnitModal').classList.add('hidden')" class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-3 py-3 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto">Cancel</button>
+                <div class="bg-slate-50 px-6 py-4 sm:flex sm:flex-row-reverse sm:px-6 border-t border-slate-100">
+                    <button type="submit" class="inline-flex w-full justify-center rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:bg-primary-hover sm:ml-3 sm:w-auto transition-all">
+                        <i class="fa-solid fa-check-double mr-2"></i> Confirm Return
+                    </button>
+                    <button type="button" onclick="document.getElementById('returnUnitModal').classList.add('hidden')" class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-6 py-3 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 sm:mt-0 sm:w-auto transition-all">Cancel</button>
                 </div>
             </form>
         </div>
@@ -735,6 +897,56 @@ include 'header.php';
     </div>
 </div>
 
+<div id="pickupUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                    <div class="mb-6">
+                        <h3 class="text-xl font-black text-slate-800">Pickup Inspection</h3>
+                        <p class="text-sm text-slate-500">Confirming pickup for: <span id="pickupBikeName" class="font-bold text-primary"></span></p>
+                    </div>
+                    
+                    <input type="hidden" name="bike_id" id="pickupBikeId">
+                    <input type="hidden" name="rental_id" id="pickupRentalId">
+                    <input type="hidden" name="pickup_unit" value="1">
+                    
+                    <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Pre-Rental Checklist</p>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
+                            <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Verify Customer License & ID</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
+                            <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Collect Security Deposit</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
+                            <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Inspect Vehicle Condition</span>
+                        </label>
+                        
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
+                            <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Handover Keys & Helmet</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                    <button type="submit" class="inline-flex w-full justify-center rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-hover sm:ml-3 sm:w-auto">
+                        <i class="fa-solid fa-check mr-2"></i> Confirm Pickup
+                    </button>
+                    <button type="button" onclick="document.getElementById('pickupUnitModal').classList.add('hidden')" class="mt-3 inline-flex w-full justify-center rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div id="viewRentalModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -802,6 +1014,13 @@ include 'header.php';
         document.getElementById('rentStartDate').value = '';
         document.getElementById('rentEndDate').value = '';
         document.getElementById('rentUnitModal').classList.remove('hidden');
+    }
+
+    function openPickupModal(bikeId, rentalId, bikeName) {
+        document.getElementById('pickupBikeId').value = bikeId;
+        document.getElementById('pickupRentalId').value = rentalId;
+        document.getElementById('pickupBikeName').textContent = bikeName;
+        document.getElementById('pickupUnitModal').classList.remove('hidden');
     }
 
     function calculateTotal() {

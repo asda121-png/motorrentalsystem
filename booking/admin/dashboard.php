@@ -170,6 +170,40 @@ if (isset($_POST['suspend_owner']) && isset($_POST['owner_id']) && isset($_POST[
     exit();
 }
 
+// Handle Owner Deletion
+if (isset($_GET['delete_owner'])) {
+    $target_id = (int)$_GET['delete_owner'];
+    // Get info for email before deletion
+    $check = mysqli_query($conn, "SELECT email, fullname FROM owners WHERE ownerid=$target_id");
+    if ($row = mysqli_fetch_assoc($check)) {
+        require_once __DIR__ . '/../smtp_mailer.php';
+        $to = $row['email'];
+        $subject = 'Account Removed';
+        $message_body = '<p>Dear ' . htmlspecialchars($row['fullname']) . ',</p><p>Your owner account has been removed from our system by the administrator.</p>';
+        send_gmail($to, $subject, $message_body);
+    }
+    mysqli_query($conn, "DELETE FROM notifications WHERE user_id=$target_id AND user_type='owner'");
+    mysqli_query($conn, "DELETE FROM owners WHERE ownerid=$target_id");
+    header("Location: ?page=verify_owners&msg=deleted");
+    exit();
+}
+
+// Handle Bike Deletion (Admin)
+if (isset($_GET['delete_bike'])) {
+    $bike_id = (int)$_GET['delete_bike'];
+    mysqli_query($conn, "DELETE FROM bikes WHERE id=$bike_id");
+    header("Location: ?page=manage_motorcycle&msg=deleted");
+    exit();
+}
+
+// Handle Bike Suspension (Admin)
+if (isset($_GET['suspend_bike'])) {
+    $bike_id = (int)$_GET['suspend_bike'];
+    mysqli_query($conn, "UPDATE bikes SET status='Maintenance' WHERE id=$bike_id");
+    header("Location: ?page=manage_motorcycle&msg=suspended");
+    exit();
+}
+
 // Global Stats for Master Dashboard (Aggregated across ALL owners)
 $master_stats_res = mysqli_query($conn, "SELECT 
     (SELECT COUNT(*) FROM owners WHERE role='Owner') as total_owners,
@@ -482,6 +516,7 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                                     <?php endif; ?>
                                                 <?php endif; ?>
                                                 <button class="btn btn-outline" style="color: #ef4444;" onclick="openSuspendModal(<?= $row['ownerid'] ?>, '<?= htmlspecialchars($row['fullname'], ENT_QUOTES) ?>')"><i class="fa-solid fa-ban"></i> Suspend</button>
+                                                <a href="?delete_owner=<?= $row['ownerid'] ?>" onclick="return confirm('Are you sure you want to delete this owner? This will remove all their bikes and data.')" class="btn btn-outline" style="color: #b91c1c;"><i class="fa-solid fa-trash"></i> Delete</a>
                                             </div>
                                         </td>
                                     </tr>
@@ -684,7 +719,7 @@ function include_logic_fleet($conn) { ?>
     <div style="margin-bottom: 30px;"><h1>Fleet Management</h1><p>Manage your motorcycle availability.</p></div>
     <div class="card">
         <table>
-            <thead><tr><th>Bike Model</th><th>Plate Number</th><th>Daily Rate</th><th>Status</th><th>Owner</th><th>Action</th></tr></thead>
+            <thead><tr><th>Bike Model</th><th>Plate Number</th><th>Daily Rate</th><th>Status</th><th>Owner</th><th style="text-align:center;">Action</th></tr></thead>
             <tbody>
                 <?php
                 $bikes_res = mysqli_query($conn, "SELECT b.*, o.fullname as owner_name, 
@@ -716,16 +751,18 @@ function include_logic_fleet($conn) { ?>
                         }
                     }
                     
-                    $rental_json = $is_rented ? json_encode([
-                        'rental_id' => $row['rental_id'],
-                        'customer_name' => $row['customer_name'],
-                        'customer_phone' => $row['phone_number'],
-                        'start_date' => date('M d, Y h:i A', strtotime($row['rental_start_date'])),
-                        'due_date' => date('M d, Y h:i A', strtotime($row['expected_return_date'])),
-                        'is_overdue' => $is_overdue,
-                        'late_days' => $late_days,
-                        'penalty' => $penalty
-                    ], JSON_HEX_APOS | JSON_HEX_QUOT) : 'null';
+                    $bike_json = json_encode([
+                        'model' => $row['model_name'],
+                        'plate' => $row['plate_number'],
+                        'type' => $row['type'],
+                        'trans' => $row['transmission'],
+                        'fuel' => $row['fuel_type'],
+                        'engine' => $row['engine_capacity'],
+                        'owner' => $row['owner_name'],
+                        'status' => $row['status'],
+                        'image' => $row['image_url'],
+                        'rate' => $row['daily_rate']
+                    ], JSON_HEX_APOS | JSON_HEX_QUOT);
                 ?>
                     <tr style="<?= $row_style ?>">
                         <td><strong><?= $row['model_name'] ?></strong></td>
@@ -738,12 +775,14 @@ function include_logic_fleet($conn) { ?>
                             <?php endif; ?>
                         </td>
                         <td><?= htmlspecialchars($row['owner_name'] ?? 'Unknown') ?></td>
-                        <td>
-                            <?php if($is_rented): ?>
-                                <button class="btn btn-outline" onclick='openModal("rental", <?= $rental_json ?>)'><i class="fa-solid fa-eye"></i> View</button>
-                            <?php else: ?>
-                                <span style="color:#cbd5e1;">-</span>
-                            <?php endif; ?>
+                        <td style="text-align:center;">
+                            <div style="display:flex; gap:5px; justify-content:center;">
+                                <button class="btn btn-outline" onclick='openModal("bike", <?= $bike_json ?>)' title="View Details"><i class="fa-solid fa-eye"></i></button>
+                                <?php if($row['status'] !== 'Maintenance' && $row['status'] !== 'Rented'): ?>
+                                    <a href="?page=manage_motorcycle&suspend_bike=<?= $row['id'] ?>" class="btn btn-outline" style="color:#f59e0b;" title="Suspend (Maintenance)" onclick="return confirm('Set this unit to Maintenance?')"><i class="fa-solid fa-ban"></i></a>
+                                <?php endif; ?>
+                                <a href="?page=manage_motorcycle&delete_bike=<?= $row['id'] ?>" class="btn btn-outline" style="color:#ef4444;" title="Delete" onclick="return confirm('Permanently delete this motorcycle?')"><i class="fa-solid fa-trash"></i></a>
+                            </div>
                         </td>
                     </tr>
                 <?php endwhile; ?>
@@ -842,6 +881,22 @@ function include_logic_fleet($conn) { ?>
                     ${brgyFile ? `<a href="../assets/owner_uploads/${brgyFile}" target="_blank" class="btn btn-outline" style="flex:1; min-width:120px; justify-content:center;"><i class="fa-solid fa-file-shield"></i> Barangay Clearance</a>` : ''}
                     ${validIdFile ? `<a href="../assets/owner_uploads/${validIdFile}" target="_blank" class="btn btn-outline" style="flex:1; min-width:120px; justify-content:center;"><i class="fa-solid fa-address-card"></i> Valid ID</a>` : ''}
                 </div>
+            `;
+        } else if (type === 'bike') {
+            title.innerText = 'Motorcycle Details';
+            let img = data.image ? '../' + data.image : 'https://images.unsplash.com/photo-1558981403-c5f91cbba527?auto=format&fit=crop&q=80&w=800';
+            body.innerHTML = `
+                <div style="text-align:center; margin-bottom:20px;">
+                    <img src="${img}" style="width:100%; max-height:200px; object-fit:cover; border-radius:12px;">
+                </div>
+                <p><strong>Model:</strong> <span>${data.model}</span></p>
+                <p><strong>Plate No:</strong> <span>${data.plate}</span></p>
+                <p><strong>Type:</strong> <span>${data.type}</span></p>
+                <p><strong>Transmission:</strong> <span>${data.trans}</span></p>
+                <p><strong>Fuel Type:</strong> <span>${data.fuel}</span></p>
+                <p><strong>Engine:</strong> <span>${data.engine || 'N/A'}</span></p>
+                <p><strong>Owner:</strong> <span>${data.owner}</span></p>
+                <p><strong>Status:</strong> <span>${data.status}</span></p>
             `;
         } else if (type === 'rental') {
             title.innerText = 'Rental Details';

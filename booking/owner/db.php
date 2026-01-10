@@ -237,6 +237,33 @@ if (mysqli_num_rows($bike_status_check) == 0) {
     mysqli_query($conn, "ALTER TABLE bikes MODIFY COLUMN status ENUM('Available', 'Reserved', 'Rented', 'Maintenance') DEFAULT 'Available'");
 }
 
+// --- NEW COLUMNS FOR ENHANCED VEHICLE DETAILS ---
+$new_bike_cols = [
+    'year_model' => "INT NULL",
+    'color' => "VARCHAR(50) NULL",
+    'security_deposit' => "DECIMAL(10, 2) DEFAULT 0.00",
+    'security_deposit_rules' => "TEXT NULL",
+    'overtime_fee' => "DECIMAL(10, 2) DEFAULT 0.00",
+    'fuel_policy' => "VARCHAR(50) DEFAULT 'Full-to-Full'",
+    'late_penalty' => "DECIMAL(10, 2) DEFAULT 0.00",
+    'pickup_location' => "VARCHAR(255) NULL",
+    'fuel_type' => "VARCHAR(50) DEFAULT 'Gasoline'",
+    'engine_capacity' => "VARCHAR(50) NULL",
+    'max_speed' => "VARCHAR(50) NULL",
+    'mileage' => "VARCHAR(50) NULL",
+    'displacement' => "INT NULL",
+    'insurance_coverage' => "TEXT NULL",
+    'condition_status' => "ENUM('Excellent', 'Good', 'Fair') DEFAULT 'Good'",
+    'last_maintenance' => "DATE NULL"
+];
+
+foreach ($new_bike_cols as $col => $def) {
+    $check = mysqli_query($conn, "SHOW COLUMNS FROM bikes LIKE '$col'");
+    if (mysqli_num_rows($check) == 0) {
+        mysqli_query($conn, "ALTER TABLE bikes ADD COLUMN $col $def");
+    }
+}
+
 // --- AUTOMATIC MAINTENANCE CHECK ---
 // If next_maintenance date has passed, set status to Maintenance (only if currently Available)
 mysqli_query($conn, "UPDATE bikes SET status='Maintenance' WHERE next_maintenance < CURDATE() AND status='Available'");

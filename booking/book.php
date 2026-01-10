@@ -141,37 +141,110 @@ $reviews_res = mysqli_query($conn, $reviews_query);
                     </div>
                 </div>
 
+                <!-- Technical Specs -->
+                <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm mb-8">
+                    <h3 class="text-lg font-bold text-primary mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-screwdriver-wrench"></i> Technical Specs
+                    </h3>
+                    <div class="grid grid-cols-2 gap-y-6 gap-x-4">
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Year Model</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['year_model'] ?? 'N/A'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Color</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['color'] ?? 'N/A'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Transmission</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['transmission'] ?? 'Automatic'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Fuel Type</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['fuel_type'] ?? 'Gasoline'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Engine</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['displacement'] ?? $bike['engine_capacity'] ?? 'N/A'); ?> cc</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Mileage</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['mileage'] ?? 'N/A'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Max Speed</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['max_speed'] ?? 'N/A'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-gray-400">Inclusions</div>
+                            <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['inclusions'] ?? 'Helmet'); ?></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rental Terms -->
+                <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm mb-8">
+                    <h3 class="text-lg font-bold text-primary mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-file-contract"></i> Rental Terms
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-start border-b border-gray-50 pb-3">
+                            <div>
+                                <div class="text-xs font-bold text-gray-700">Security Deposit</div>
+                                <div class="text-[10px] text-gray-400"><?php echo htmlspecialchars($bike['security_deposit_rules'] ?? 'Refundable upon return'); ?></div>
+                            </div>
+                            <div class="font-black text-primary">₱<?php echo number_format($bike['security_deposit'] ?? 0, 2); ?></div>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-gray-50 pb-3">
+                            <div class="text-xs font-bold text-gray-700">Overtime Fee</div>
+                            <div class="font-bold text-gray-600">₱<?php echo number_format($bike['overtime_fee'] ?? 0, 2); ?>/hr</div>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-gray-50 pb-3">
+                            <div class="text-xs font-bold text-gray-700">Late Penalty</div>
+                            <div class="font-bold text-gray-600">₱<?php echo number_format($bike['late_penalty'] ?? 0, 2); ?></div>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-gray-50 pb-3">
+                            <div class="text-xs font-bold text-gray-700">Fuel Policy</div>
+                            <div class="font-bold text-gray-600"><?php echo htmlspecialchars($bike['fuel_policy'] ?? 'Full-to-Full'); ?></div>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-gray-700 mb-1">Insurance Coverage</div>
+                            <div class="text-xs text-gray-500 bg-gray-50 p-3 rounded-xl">
+                                <?php echo htmlspecialchars($bike['insurance_coverage'] ?? 'Standard TPL'); ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Condition & Location -->
                 <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
-                    <h3 class="text-lg font-bold text-primary mb-6">Vehicle Specifications</h3>
-                    <div class="grid grid-cols-2 gap-6">
+                    <h3 class="text-lg font-bold text-primary mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info"></i> Condition & Location
+                    </h3>
+                    <div class="space-y-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400"><i class="fa-solid fa-gas-pump"></i></div>
+                            <div class="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-check"></i></div>
                             <div>
-                                <div class="text-[10px] font-bold uppercase text-gray-400">Fuel Level</div>
-                                <div class="font-bold text-gray-700"><?php echo $bike['fuel_level']; ?>%</div>
+                                <div class="text-[10px] font-bold uppercase text-gray-400">Condition</div>
+                                <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['condition_status'] ?? 'Good'); ?></div>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400"><i class="fa-solid fa-gears"></i></div>
+                            <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-location-dot"></i></div>
                             <div>
-                                <div class="text-[10px] font-bold uppercase text-gray-400">Transmission</div>
-                                <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['transmission'] ?? 'Automatic'); ?></div>
+                                <div class="text-[10px] font-bold uppercase text-gray-400">Pickup Location</div>
+                                <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['pickup_location'] ?? $bike['owner_location'] ?? 'Mati City'); ?></div>
                             </div>
                         </div>
+                        <?php if(!empty($bike['last_maintenance'])): ?>
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400"><i class="fa-solid fa-id-card"></i></div>
+                            <div class="w-8 h-8 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center"><i class="fa-solid fa-calendar-check"></i></div>
                             <div>
-                                <div class="text-[10px] font-bold uppercase text-gray-400">Plate Number</div>
-                                <div class="font-bold text-gray-700">Ending in <?php echo substr($bike['plate_number'], -3); ?></div>
+                                <div class="text-[10px] font-bold uppercase text-gray-400">Last Maintenance</div>
+                                <div class="font-bold text-gray-700"><?php echo date('M d, Y', strtotime($bike['last_maintenance'])); ?></div>
                             </div>
                         </div>
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400"><i class="fa-solid fa-helmet-safety"></i></div>
-                            <div>
-                                <div class="text-[10px] font-bold uppercase text-gray-400">Inclusions</div>
-                                <div class="font-bold text-gray-700"><?php echo htmlspecialchars($bike['inclusions'] ?? 'Helmet'); ?></div>
-                            </div>
-                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -189,7 +262,7 @@ $reviews_res = mysqli_query($conn, $reviews_query);
                             <span class="text-slate-400 font-medium text-xs ml-1">(<?php echo $total_reviews; ?> reviews)</span>
                         </div>
                         <div class="flex items-center gap-2 text-sm font-medium text-gray-500">
-                            <i class="fa-solid fa-location-dot text-accent"></i> Available in <?php echo htmlspecialchars($bike['owner_location'] ?? 'Mati City'); ?>
+                            <i class="fa-solid fa-location-dot text-accent"></i> Available in <?php echo htmlspecialchars($bike['pickup_location'] ?? $bike['owner_location'] ?? 'Mati City'); ?>
                         </div>
                     </div>
                     <div class="flex items-end gap-2">

@@ -1,5 +1,7 @@
 <?php
 session_start();
+// Enable error reporting for debugging
+error_reporting(E_ALL); ini_set('display_errors', 1);
 require_once 'smtp_mailer.php';
 
 // Database Connection
@@ -40,11 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     $email_body = "<h3>New Message from Contact Us</h3><p><strong>Name:</strong> " . htmlspecialchars($name) . "</p><p><strong>Email:</strong> " . htmlspecialchars($email) . "</p><p><strong>Subject:</strong> " . htmlspecialchars($subject) . "</p><p><strong>Message:</strong><br>" . nl2br(htmlspecialchars($message)) . "</p>";
 
     // Send to admin email
-    if (send_gmail('labradoriiichristian@gmail.com', "Contact Us: $subject", $email_body)) {
+    // Use +contact alias to force Gmail to show it in Inbox instead of just Sent folder
+    if (send_gmail('christian.labrador+contact@dorsu.edu.ph', "Contact Us: $subject", $email_body, $email)) {
         echo "<script>alert('Message sent successfully! We will get back to you shortly.'); window.location.href='contact.php';</script>";
         exit();
     } else {
-        echo "<script>alert('Failed to send message. Please try again later.');</script>";
+        echo "<script>alert('Failed to send: " . addslashes($smtp_debug_error) . "');</script>";
     }
 }
 ?>

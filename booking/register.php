@@ -232,14 +232,15 @@ unset($_SESSION['global_error'], $_SESSION['success']);
 
     <div class="flex min-h-screen">
         <div class="hidden lg:flex lg:w-3/5 auth-split-bg relative items-center justify-center p-12">
-            <div class="absolute top-10 left-10 flex items-center gap-2">
+            <a href="index.php" class="absolute top-10 left-10 flex items-center gap-2" >
+              
                 <div class="w-10 h-10 rounded bg-white flex items-center justify-center shadow-lg">
                     <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
                 </div>
                 <span class="text-2xl font-bold text-white tracking-tight">MatiMotoRental</span>
-            </div>
+            </a>
             <div class="z-10 text-white max-w-lg">
                 <h1 class="text-5xl font-extrabold mb-6 leading-tight">Start Your Journey <br/> Today.</h1>
                 <p class="text-xl opacity-90 mb-8 leading-relaxed">Book faster, track your rentals, and enjoy exclusive offers for your Mati City adventure.</p>
@@ -250,12 +251,12 @@ unset($_SESSION['global_error'], $_SESSION['success']);
             <div class="w-full max-w-sm form-container">
                 
                 <div class="lg:hidden flex justify-center mb-10">
-                    <div class="flex items-center gap-2">
+                    <a href="index.php" class="flex items-center gap-2">
                         <div class="w-8 h-8 rounded bg-primary flex items-center justify-center">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                         </div>
                         <span class="text-xl font-bold text-primary tracking-tight">MatiMotoRental</span>
-                    </div>
+                    </a>
                 </div>
 
                 <div>
@@ -395,7 +396,7 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                 <div class="mt-8 text-center">
                     <p class="text-sm text-gray-500">
                         Already have an account? 
-                        <a href="index.php" class="text-accent font-bold hover:underline transition">Sign In</a>
+                        <a href="login.php" class="text-accent font-bold hover:underline transition">Sign In</a>
                     </p>
                 </div>
                 

@@ -136,6 +136,12 @@ unset($_SESSION['error'], $_SESSION['success']);
             box-shadow: 0 0 0 3px rgba(0, 183, 181, 0.1);
         }
 
+        /* HIDE DEFAULT BROWSER EYE */
+        input::-ms-reveal,
+        input::-ms-clear {
+            display: none;
+        }
+
         .form-container {
             animation: fadeIn 0.4s ease-out;
         }
@@ -151,14 +157,14 @@ unset($_SESSION['error'], $_SESSION['success']);
     <div class="flex min-h-screen">
         <!-- Left Side: Visuals -->
         <div class="hidden lg:flex lg:w-3/5 auth-split-bg relative items-center justify-center p-12">
-            <div class="absolute top-10 left-10 flex items-center gap-2">
+            <a href="index.php" class="absolute top-10 left-10 flex items-center gap-2">
                 <div class="w-10 h-10 rounded bg-white flex items-center justify-center shadow-lg">
                     <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
                 </div>
-                <span class="text-2xl font-bold text-white tracking-tight">MatiMotoRental</span>
-            </div>
+                <span  class="text-2xl font-bold text-white tracking-tight">MatiMotoRental</span>
+            </a>
 
             <div class="z-10 text-white max-w-lg">
                 <h1 class="text-5xl font-extrabold mb-6 leading-tight">Welcome Back <br/> Adventurer.</h1>
@@ -171,12 +177,12 @@ unset($_SESSION['error'], $_SESSION['success']);
             <div class="w-full max-w-sm form-container">
                 
                 <div class="lg:hidden flex justify-center mb-10">
-                    <div class="flex items-center gap-2">
+                    <a href="index.php" class="flex items-center gap-2">
                         <div class="w-8 h-8 rounded bg-primary flex items-center justify-center">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                         </div>
                         <span class="text-xl font-bold text-primary tracking-tight uppercase">Mati<span class="text-accent">Rentals</span></span>
-                    </div>
+                    </a>
                 </div>
 
                 <div>
@@ -207,7 +213,13 @@ unset($_SESSION['error'], $_SESSION['success']);
                             <label class="block text-[10px] font-bold uppercase text-gray-400 tracking-widest">Password</label>
                             <a href="forgot_password.php" class="text-[10px] font-bold text-accent uppercase hover:underline">Forgot?</a>
                         </div>
-                        <input type="password" name="password" required placeholder="••••••••" class="w-full px-6 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                        <div class="relative">
+                            <input type="password" name="password" id="password" required placeholder="••••••••" oninput="checkInput(this)" class="w-full pl-6 pr-12 py-4 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white transition-all text-sm">
+                            <button type="button" onclick="togglePassword('password', this)" class="hidden absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary focus:outline-none">
+                                <svg class="w-5 h-5 block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                <svg class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
+                            </button>
+                        </div>
                     </div>
                     
                     <button type="submit" class="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-xl shadow-primary/20 hover:bg-secondary transition-all active:scale-[0.98] mt-4">
@@ -232,5 +244,35 @@ unset($_SESSION['error'], $_SESSION['success']);
             </div>
         </div>
     </div>
+
+    <script>
+        function checkInput(input) {
+            const btn = input.parentElement.querySelector('button');
+            if (input.value.length > 0) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const svgs = btn.querySelectorAll('svg');
+            
+            if (input.type === "password") {
+                input.type = "text";
+                svgs[0].classList.add('hidden'); 
+                svgs[0].classList.remove('block'); 
+                svgs[1].classList.remove('hidden');
+                svgs[1].classList.add('block');
+            } else {
+                input.type = "password";
+                svgs[0].classList.remove('hidden');
+                svgs[0].classList.add('block');
+                svgs[1].classList.add('hidden');
+                svgs[1].classList.remove('block');
+            }
+        }
+    </script>
 </body>
 </html>

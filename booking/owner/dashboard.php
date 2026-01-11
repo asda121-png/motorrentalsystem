@@ -128,11 +128,12 @@ include 'header.php';
                             <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Customer</th>
                             <th class="px-8 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Vehicle</th>
                             <th class="px-8 py-5 text-right text-[10px] font-black uppercase tracking-widest text-slate-400">Amount</th>
+                            <th class="px-8 py-5 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
                         <?php
-                        $recent_query = "SELECT r.*, b.model_name, c.fullname as customer_name, c.profile_image 
+                        $recent_query = "SELECT r.*, b.model_name, c.fullname as customer_name, c.profile_image, c.phone_number 
                                          FROM rentals r 
                                          JOIN bikes b ON r.bike_id = b.id 
                                          LEFT JOIN customers c ON r.customer_id = c.userid
@@ -162,6 +163,18 @@ include 'header.php';
                             </td>
                             <td class="px-8 py-6 text-right">
                                 <span class="text-sm font-black text-primary">₱<?= number_format($row['amount_collected'], 0); ?></span>
+                            </td>
+                            <td class="px-8 py-6 text-center">
+                                <button onclick='openViewModal(<?= json_encode([
+                                    "ref" => $row['id'],
+                                    "customer" => $row['customer_name'] ?? "Walk-in Guest",
+                                    "phone" => $row['phone_number'] ?? "N/A",
+                                    "vehicle" => $row['model_name'],
+                                    "start" => date("M d, Y h:i A", strtotime($row['rental_start_date'])),
+                                    "end" => $row['expected_return_date'] ? date("M d, Y", strtotime($row['expected_return_date'])) : "N/A",
+                                    "amount" => number_format($row['amount_collected'], 2),
+                                    "status" => $row['status']
+                                ]) ?>)' class="w-8 h-8 rounded-xl bg-slate-50 text-slate-400 hover:bg-primary hover:text-white transition-all flex items-center justify-center mx-auto"><i class="fa-solid fa-eye"></i></button>
                             </td>
                         </tr>
                         <?php endwhile; ?>
@@ -243,5 +256,84 @@ include 'header.php';
         </div>
     </div>
 </div>
+
+<!-- View Booking Modal -->
+<div id="viewBookingModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4 text-center">
+            <div class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all w-full max-w-sm p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-black text-slate-800">Booking Details</h3>
+                    <button onclick="document.getElementById('viewBookingModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                
+                <div class="space-y-4 text-sm">
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Reference</span>
+                        <span class="font-bold text-slate-700" id="modalRef"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Customer</span>
+                        <span class="font-bold text-slate-700" id="modalCustomer"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Phone</span>
+                        <span class="font-bold text-slate-700" id="modalPhone"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Vehicle</span>
+                        <span class="font-bold text-primary" id="modalVehicle"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Start Date</span>
+                        <span class="font-bold text-slate-700" id="modalStart"></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-50 pb-2">
+                        <span class="text-slate-500 font-medium">Return Date</span>
+                        <span class="font-bold text-slate-700" id="modalEnd"></span>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-slate-500 font-medium">Amount Paid</span>
+                        <span class="text-xl font-black text-emerald-600" id="modalAmount"></span>
+                    </div>
+                    <div class="text-center pt-2">
+                         <span id="modalStatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openViewModal(data) {
+    document.getElementById('modalRef').textContent = '#' + data.ref;
+    document.getElementById('modalCustomer').textContent = data.customer;
+    document.getElementById('modalPhone').textContent = data.phone;
+    document.getElementById('modalVehicle').textContent = data.vehicle;
+    document.getElementById('modalStart').textContent = data.start;
+    document.getElementById('modalEnd').textContent = data.end;
+    document.getElementById('modalAmount').textContent = '₱' + data.amount;
+    
+    const statusSpan = document.getElementById('modalStatus');
+    statusSpan.textContent = data.status;
+    
+    // Reset classes
+    statusSpan.className = 'px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest';
+    
+    if(data.status === 'Active') {
+        statusSpan.classList.add('bg-blue-50', 'text-blue-600');
+    } else if(data.status === 'Completed') {
+        statusSpan.classList.add('bg-emerald-50', 'text-emerald-600');
+    } else if(data.status === 'Pending') {
+        statusSpan.classList.add('bg-amber-50', 'text-amber-600');
+    } else {
+        statusSpan.classList.add('bg-slate-100', 'text-slate-500');
+    }
+
+    document.getElementById('viewBookingModal').classList.remove('hidden');
+}
+</script>
 
 <?php include 'footer.php'; ?>

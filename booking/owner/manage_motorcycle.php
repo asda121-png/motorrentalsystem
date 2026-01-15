@@ -106,11 +106,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['return_unit'])) {
     $bike_id = (int)$_POST['bike_id'];
     $damage_notes = mysqli_real_escape_string($conn, $_POST['damage_notes']);
     $repair_cost = (float)$_POST['repair_cost'];
+    $penalty_amount = isset($_POST['penalty_amount']) ? (float)$_POST['penalty_amount'] : 0.00;
+    $deposit_returned = isset($_POST['deposit_returned']) ? 1 : 0;
     
     // Capture new return details
     $fuel_level = isset($_POST['fuel_level']) ? (int)$_POST['fuel_level'] : 100;
     $condition_status = isset($_POST['condition_status']) ? mysqli_real_escape_string($conn, $_POST['condition_status']) : 'Good';
     
+    // Handle Return Images Upload
+    $return_imgs_json = '[]';
+    if (isset($_FILES['return_images'])) {
+        $uploaded = [];
+        $target_dir = "../assets/rental_proofs/";
+        if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
+        
+        foreach ($_FILES['return_images']['name'] as $key => $name) {
+            if ($_FILES['return_images']['error'][$key] == 0) {
+                $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                if(in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                    $fname = uniqid('ret_') . '.' . $ext;
+                    if (move_uploaded_file($_FILES['return_images']['tmp_name'][$key], $target_dir . $fname)) {
+                        $uploaded[] = "assets/rental_proofs/" . $fname;
+                    }
+                }
+            }
+        }
+        $return_imgs_json = mysqli_real_escape_string($conn, json_encode($uploaded));
+    }
+
     // Determine status: If there is a repair cost, set to Maintenance, otherwise Available.
     $new_status = ($repair_cost > 0) ? 'Maintenance' : 'Available';
 
@@ -122,7 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['return_unit'])) {
     $active_res = mysqli_query($conn, $active_rental_query);
     if ($active_row = mysqli_fetch_assoc($active_res)) {
         $rental_id = $active_row['id'];
-        $update_sql = "UPDATE rentals SET status='Completed', rental_end_date=NOW(), damage_notes='$damage_notes', repair_cost='$repair_cost' WHERE id=$rental_id";
+        // Record rental_end_date (Exact Return) as NOW() when owner clicks 'Return'
+        $update_sql = "UPDATE rentals SET status='Completed', rental_end_date=NOW(), return_fuel_level='$fuel_level', return_condition='$condition_status', return_images='$return_imgs_json', damage_notes='$damage_notes', repair_cost='$repair_cost', penalty_amount='$penalty_amount', deposit_returned='$deposit_returned' WHERE id=$rental_id";
         mysqli_query($conn, $update_sql);
 
         // Notify Owner
@@ -192,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
     $start_date = $_POST['start_date'];
     $end_date = str_replace('T', ' ', $_POST['end_date']); // Handle datetime-local format
     $owner_id = $_SESSION['userid'];
+    $deposit_collected = isset($_POST['deposit_collected']) ? 1 : 0;
     
     // Check if customer exists and is verified
     $check_cust = mysqli_query($conn, "SELECT userid, is_verified FROM customers WHERE email = '$customer_email' LIMIT 1");
@@ -213,12 +238,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
     }
 
     if ($proceed) {
+        // Fetch current bike state for "Before" snapshot
+        $bike_res = mysqli_query($conn, "SELECT fuel_level, condition_status FROM bikes WHERE id=$bike_id");
+        $bike_row = mysqli_fetch_assoc($bike_res);
+        $p_fuel = $bike_row['fuel_level'] ?? 100;
+        $p_cond = $bike_row['condition_status'] ?? 'Good';
+
+        // Handle Pickup Images Upload
+        $pickup_imgs_json = '[]';
+        if (isset($_FILES['pickup_images'])) {
+            $uploaded = [];
+            $target_dir = "../assets/rental_proofs/";
+            if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
+            
+            foreach ($_FILES['pickup_images']['name'] as $key => $name) {
+                if ($_FILES['pickup_images']['error'][$key] == 0) {
+                    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                    if(in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                        $fname = uniqid('pick_') . '.' . $ext;
+                        if (move_uploaded_file($_FILES['pickup_images']['tmp_name'][$key], $target_dir . $fname)) {
+                            $uploaded[] = "assets/rental_proofs/" . $fname;
+                        }
+                    }
+                }
+            }
+            $pickup_imgs_json = json_encode($uploaded);
+        }
+
         // 1. Update bike status to Rented
         mysqli_query($conn, "UPDATE bikes SET status='Rented' WHERE id=$bike_id");
 
         // 2. Record the transaction
-        $stmt = $conn->prepare("INSERT INTO rentals (bike_id, customer_id, owner_id, amount_collected, rental_start_date, expected_return_date, status) VALUES (?, ?, ?, ?, ?, ?, 'Active')");
-        $stmt->bind_param("iiidss", $bike_id, $customer_id, $owner_id, $amount, $start_date, $end_date);
+        $stmt = $conn->prepare("INSERT INTO rentals (bike_id, customer_id, owner_id, amount_collected, rental_start_date, expected_return_date, exact_pickup_date, pickup_fuel_level, pickup_condition, pickup_images, deposit_collected, status) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, 'Active')");
+        $stmt->bind_param("iiidssissi", $bike_id, $customer_id, $owner_id, $amount, $start_date, $end_date, $p_fuel, $p_cond, $pickup_imgs_json, $deposit_collected);
         $stmt->execute();
 
         header("Location: manage_motorcycle.php?msg=rented");
@@ -230,11 +282,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['manual_rent'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pickup_unit'])) {
     $bike_id = (int)$_POST['bike_id'];
     $rental_id = (int)$_POST['rental_id'];
+    $deposit_collected = isset($_POST['deposit_collected']) ? 1 : 0;
     
+    // Fetch current bike state for "Before" snapshot
+    $bike_res = mysqli_query($conn, "SELECT fuel_level, condition_status FROM bikes WHERE id=$bike_id");
+    $bike_row = mysqli_fetch_assoc($bike_res);
+    $p_fuel = $bike_row['fuel_level'] ?? 100;
+    $p_cond = $bike_row['condition_status'] ?? 'Good';
+
+    // Handle Pickup Images Upload
+    $pickup_imgs_json = '[]';
+    if (isset($_FILES['pickup_images'])) {
+        $uploaded = [];
+        $target_dir = "../assets/rental_proofs/";
+        if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
+        
+        foreach ($_FILES['pickup_images']['name'] as $key => $name) {
+            if ($_FILES['pickup_images']['error'][$key] == 0) {
+                $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                if(in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                    $fname = uniqid('pick_') . '.' . $ext;
+                    if (move_uploaded_file($_FILES['pickup_images']['tmp_name'][$key], $target_dir . $fname)) {
+                        $uploaded[] = "assets/rental_proofs/" . $fname;
+                    }
+                }
+            }
+        }
+        $pickup_imgs_json = json_encode($uploaded);
+    }
+
     // 1. Update Bike Status
     mysqli_query($conn, "UPDATE bikes SET status='Rented' WHERE id=$bike_id");
     // 2. Update Rental Status
-    mysqli_query($conn, "UPDATE rentals SET status='Active' WHERE id=$rental_id");
+    $stmt = $conn->prepare("UPDATE rentals SET status='Active', exact_pickup_date=NOW(), pickup_fuel_level=?, pickup_condition=?, pickup_images=?, deposit_collected=? WHERE id=?");
+    $stmt->bind_param("issii", $p_fuel, $p_cond, $pickup_imgs_json, $deposit_collected, $rental_id);
+    $stmt->execute();
 
     header("Location: manage_motorcycle.php?msg=picked_up");
     exit();
@@ -351,7 +433,7 @@ include 'header.php';
                         if ($now > $due) {
                             $is_overdue = true;
                             $late_days = $now->diff($due)->days;
-                            $penalty = ($late_days * $row['daily_rate']) * 1.10; // Late fee + 10%
+                            $penalty = ($late_days == 0 ? 1 : $late_days) * ($row['daily_rate'] * 2); // Double daily rate penalty
                             $row_style = "background-color: #fff1f2;"; // Light red highlight
                         }
                     }
@@ -449,7 +531,7 @@ include 'header.php';
                                 <button onclick='openViewModal(<?php echo $rental_json; ?>)' class="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors mr-1" title="View Details">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
-                                <button onclick="openReturnModal(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['model_name']); ?>')" 
+                                <button onclick="openReturnModal(<?php echo $row['id']; ?>, '<?php echo htmlspecialchars($row['model_name']); ?>', <?php echo $row['daily_rate']; ?>, '<?php echo $row['expected_return_date']; ?>')" 
                                    class="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors">
                                     <i class="fa-solid fa-arrow-rotate-left"></i> Return & Inspect
                                 </button>
@@ -736,7 +818,7 @@ include 'header.php';
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
         <div class="flex min-h-full items-center justify-center p-4 text-center">
-            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all w-full max-w-2xl">
+            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all w-full max-w-2xl">
                 <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                     <div class="mb-6 border-b border-slate-100 pb-4">
                         <h3 class="text-xl font-black text-slate-800">Return Inspection</h3>
@@ -762,6 +844,10 @@ include 'header.php';
                                     <input type="checkbox" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
                                     <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Accessories (Raincoat/Tools)</span>
                                 </label>
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" name="deposit_returned" value="1" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                    <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Security Deposit Returned</span>
+                                </label>
                             </div>
 
                             <div class="grid grid-cols-2 gap-3">
@@ -776,6 +862,19 @@ include 'header.php';
                                         <option value="Good" selected>Good</option>
                                         <option value="Fair">Fair</option>
                                     </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Return Photos</label>
+                                <input type="file" name="return_images[]" multiple accept="image/*" class="w-full rounded-xl border border-slate-200 text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+                            </div>
+
+                            <div id="penaltyField" class="hidden bg-red-50 p-3 rounded-xl border border-red-100">
+                                <label class="block text-xs font-bold uppercase text-red-500 mb-1">Late Penalty (Double Rate)</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-red-400 font-bold">₱</span>
+                                    <input type="number" name="penalty_amount" id="penaltyAmount" value="0" readonly class="w-full pl-6 bg-transparent border-none text-red-600 font-black text-lg focus:ring-0 p-0">
                                 </div>
                             </div>
                         </div>
@@ -811,7 +910,7 @@ include 'header.php';
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
                 <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                     <div class="mb-6">
                         <h3 class="text-xl font-black text-slate-800">Manual Rental</h3>
@@ -844,6 +943,14 @@ include 'header.php';
                         <div>
                             <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Amount Collected (₱)</label>
                             <input type="number" name="amount_collected" id="rentAmount" required min="0" step="0.01" class="w-full rounded-xl border-slate-200 text-sm font-bold text-slate-700 focus:border-primary focus:ring-primary">
+                        </div>
+                        <label class="flex items-center gap-3 cursor-pointer group bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <input type="checkbox" name="deposit_collected" value="1" class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
+                            <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Security Deposit Collected</span>
+                        </label>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Pickup Photos</label>
+                            <input type="file" name="pickup_images[]" multiple accept="image/*" class="w-full rounded-xl border border-slate-200 text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
                         </div>
                     </div>
                 </div>
@@ -901,7 +1008,7 @@ include 'header.php';
     <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto">
         <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <form action="manage_motorcycle.php" method="POST" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+            <form action="manage_motorcycle.php" method="POST" enctype="multipart/form-data" class="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
                 <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                     <div class="mb-6">
                         <h3 class="text-xl font-black text-slate-800">Pickup Inspection</h3>
@@ -921,7 +1028,7 @@ include 'header.php';
                         </label>
                         
                         <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
+                            <input type="checkbox" name="deposit_collected" value="1" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
                             <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Collect Security Deposit</span>
                         </label>
                         
@@ -934,6 +1041,11 @@ include 'header.php';
                             <input type="checkbox" required class="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300">
                             <span class="text-sm font-bold text-slate-600 group-hover:text-primary transition-colors">Handover Keys & Helmet</span>
                         </label>
+                    </div>
+                    
+                    <div class="mt-4 text-left">
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Pickup Photos</label>
+                        <input type="file" name="pickup_images[]" multiple accept="image/*" class="w-full rounded-xl border border-slate-200 text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
                     </div>
                 </div>
                 <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
@@ -999,9 +1111,30 @@ include 'header.php';
 </div>
 
 <script>
-    function openReturnModal(id, name) {
+    function openReturnModal(id, name, dailyRate, expectedReturnDate) {
         document.getElementById('returnBikeId').value = id;
         document.getElementById('returnBikeName').textContent = name;
+        
+        // Calculate Penalty
+        const now = new Date();
+        const expected = new Date(expectedReturnDate);
+        const penaltyField = document.getElementById('penaltyField');
+        const penaltyInput = document.getElementById('penaltyAmount');
+        
+        if (now > expected) {
+            const diffMs = now - expected;
+            // Calculate days late (round up to ensure at least 1 day penalty if late)
+            const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+            // Penalty: Days Late * (Daily Rate * 2)
+            const penalty = diffDays * (dailyRate * 2);
+            
+            penaltyInput.value = penalty.toFixed(2);
+            penaltyField.classList.remove('hidden');
+        } else {
+            penaltyInput.value = 0;
+            penaltyField.classList.add('hidden');
+        }
+
         document.getElementById('returnUnitModal').classList.remove('hidden');
     }
 
@@ -1060,7 +1193,7 @@ include 'header.php';
         if (data.is_overdue) {
             lateContainer.classList.remove('hidden');
             document.getElementById('viewLateDays').textContent = data.late_days;
-            document.getElementById('viewPenalty').textContent = '₱' + parseFloat(data.penalty).toFixed(2);
+            document.getElementById('viewPenalty').textContent = '₱' + parseFloat(data.penalty).toFixed(2) + ' (2x Rate)';
         } else {
             lateContainer.classList.add('hidden');
         }

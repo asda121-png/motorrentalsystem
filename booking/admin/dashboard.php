@@ -370,8 +370,12 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
 
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <div><h3>Total Platform Revenue</h3><div style="font-size: 1.8rem; font-weight: 700; margin-top: 8px;">$<?= number_format($master_stats['platform_revenue'] ?? 0, 2) ?></div></div>
+                            <div><h3>Total Platform Revenue</h3><div style="font-size: 1.8rem; font-weight: 700; margin-top: 8px;">₱<?= number_format($master_stats['platform_revenue'] ?? 0, 2) ?></div></div>
                             <div class="stat-icon-wrapper" style="background: #eff6ff; color: #3b82f6;"><i class="fa-solid fa-coins"></i></div>
+                        </div>
+                        <div class="stat-card">
+                            <div><h3>Admin Share</h3><div style="font-size: 1.8rem; font-weight: 700; margin-top: 8px;">₱<?= number_format(($master_stats['platform_revenue'] ?? 0) * 0.05, 2) ?></div></div>
+                            <div class="stat-icon-wrapper" style="background: #fdf4ff; color: #d946ef;"><i class="fa-solid fa-percent"></i></div>
                         </div>
                         <div class="stat-card">
                             <div><h3>Total Bookings</h3><div style="font-size: 1.8rem; font-weight: 700; margin-top: 8px;"><?= $master_stats['total_bookings'] ?> Rides</div></div>
@@ -406,7 +410,7 @@ $admin_unread_count = mysqli_fetch_assoc(mysqli_query($conn, $admin_unread_query
                                         <td><strong><?= $row['full_name'] ?></strong><br><small style="color:var(--text-muted)">@<?= $row['username'] ?></small></td>
                                         <td><?= $row['fleet'] ?> units</td>
                                         <td><?= $row['bookings'] ?> trips</td>
-                                        <td style="font-weight: 700; color: var(--accent);">$<?= number_format($row['rev'] ?? 0, 2) ?></td>
+                                        <td style="font-weight: 700; color: var(--accent);">₱<?= number_format($row['rev'] ?? 0, 2) ?></td>
                                     </tr>
                                 <?php endwhile; ?>
                             </tbody>

@@ -86,6 +86,7 @@ $tables = [
     owner_id INT NOT NULL,  -- For easy owner reporting
     amount_collected DECIMAL(10, 2) NOT NULL,
     rental_start_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    exact_pickup_date DATETIME NULL,
     rental_end_date DATETIME NULL,
     expected_return_date DATE NULL,
     status ENUM('Pending', 'Active', 'Completed', 'Overdue') DEFAULT 'Active',
@@ -197,6 +198,34 @@ if (mysqli_num_rows($cust_verified_check) == 0) {
     mysqli_query($conn, "ALTER TABLE customers ADD COLUMN is_verified TINYINT(1) DEFAULT 0 AFTER status");
 }
 
+// Check for exact_pickup_date column
+$pickup_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'exact_pickup_date'");
+if (mysqli_num_rows($pickup_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN exact_pickup_date DATETIME NULL AFTER rental_start_date");
+}
+
+// Check for exact_pickup_date column
+$pickup_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'exact_pickup_date'");
+if (mysqli_num_rows($pickup_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN exact_pickup_date DATETIME NULL AFTER rental_start_date");
+}
+
+// Check for inspection columns in rentals
+$inspection_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'pickup_fuel_level'");
+if (mysqli_num_rows($inspection_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN pickup_fuel_level INT DEFAULT 100 AFTER exact_pickup_date");
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN pickup_condition VARCHAR(50) DEFAULT 'Good' AFTER pickup_fuel_level");
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN return_fuel_level INT DEFAULT NULL AFTER rental_end_date");
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN return_condition VARCHAR(50) DEFAULT NULL AFTER return_fuel_level");
+}
+
+// Check for image proof columns
+$img_proof_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'pickup_images'");
+if (mysqli_num_rows($img_proof_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN pickup_images TEXT NULL AFTER pickup_condition");
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN return_images TEXT NULL AFTER return_condition");
+}
+
 // Check expected_return_date type and modify to DATETIME if it is DATE so we can store time
 $rental_date_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'expected_return_date'");
 $rd_row = mysqli_fetch_assoc($rental_date_check);
@@ -216,6 +245,19 @@ $rental_damage_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'dama
 if (mysqli_num_rows($rental_damage_check) == 0) {
     mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN damage_notes TEXT DEFAULT NULL AFTER status");
     mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN repair_cost DECIMAL(10, 2) DEFAULT 0.00 AFTER damage_notes");
+}
+
+// Check specifically for penalty_amount (Fix for undefined array key warning)
+$penalty_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'penalty_amount'");
+if (mysqli_num_rows($penalty_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN penalty_amount DECIMAL(10, 2) DEFAULT 0.00 AFTER repair_cost");
+}
+
+// Check for deposit tracking columns
+$deposit_check = mysqli_query($conn, "SHOW COLUMNS FROM rentals LIKE 'deposit_collected'");
+if (mysqli_num_rows($deposit_check) == 0) {
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN deposit_collected TINYINT(1) DEFAULT 0 AFTER amount_collected");
+    mysqli_query($conn, "ALTER TABLE rentals ADD COLUMN deposit_returned TINYINT(1) DEFAULT 0 AFTER penalty_amount");
 }
 
 // Check for feedback columns in rentals

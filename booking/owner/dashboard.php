@@ -74,10 +74,7 @@ include 'header.php';
             </div>
             
             <div class="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-                <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[2rem] flex-1 md:min-w-[160px] text-center">
-                    <div class="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">Efficiency</div>
-                    <div class="text-3xl font-black text-accent"><?php echo $utilization; ?>%</div>
-                </div>
+                
                 <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[2rem] flex-1 md:min-w-[160px] text-center">
                     <div class="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-2">On Trips</div>
                     <div class="text-3xl font-black text-white"><?php echo $rented_count; ?></div>

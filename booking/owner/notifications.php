@@ -229,7 +229,7 @@ if (isset($_SESSION['userid'])) {
                     </div>
                     <span class="font-bold text-primary uppercase tracking-tight">Mati Rentals</span>
                 </div>
-                <p class="text-gray-400 text-sm">© 2024 Mati City Motorcycle Rental Services.</p>
+                <p class="text-gray-400 text-sm">© 2025 Mati City Motorcycle Rental Services.</p>
             </div>
             <div class="flex gap-4">
                 <a href="#" class="w-10 h-10 rounded-full border flex items-center justify-center hover:bg-primary hover:text-white transition text-gray-400">FB</a>

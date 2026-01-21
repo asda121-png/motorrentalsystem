@@ -520,7 +520,7 @@ if (isset($_SESSION['userid'])) {
                 alert('An error occurred. Please try again.');
                 btn.textContent = originalText;
                 btn.disabled = false;
-            });
+            }); 
         }
 
         // Set minimum pickup date to now
@@ -534,8 +534,8 @@ if (isset($_SESSION['userid'])) {
                 return;
             }
 
-            const start = new Date(pickupInput.value);
-            const end = new Date(returnInput.value);
+            const start = new Date(returnInput.value);
+            const end = new Date(pickupInput.value);
             const diffTime = end - start;
 
             if (diffTime > 0) {

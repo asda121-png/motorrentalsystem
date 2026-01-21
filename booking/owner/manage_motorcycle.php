@@ -570,7 +570,7 @@ include 'header.php';
 
 <div class="mt-6 flex items-center gap-3 text-slate-400 text-xs font-medium bg-slate-100/50 p-4 rounded-xl border border-slate-100">
     <i class="fa-solid fa-circle-info text-primary"></i>
-    <span>System Note: All transactions are logged as <strong>Cash Only</strong>. Ensure you have collected the payment before clicking "Rent Now".</span>
+    <span>System Note: All transactions are logged as <strong>Cash Only</strong>. Ensure you have collected the payment before clicking "Pick up".</span>
 </div>
 
 <div id="addUnitModal" class="fixed inset-0 z-[100] hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">

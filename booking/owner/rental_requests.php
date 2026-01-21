@@ -135,7 +135,7 @@ include 'header.php';
                     </div>
                     <div class="text-right">
                         <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Requested</div>
-                        <div class="text-sm font-bold text-slate-600"><?= date('M d, h:i A', strtotime($row['rental_start_date'])); ?></div>
+                        <div class="text-sm font-bold text-slate-600"><?= date('M d y, h:i A', strtotime($row['rental_start_date'])); ?></div>
                     </div>
                 </div>
 
@@ -197,7 +197,7 @@ include 'header.php';
         </div>
         <div class="flex gap-4">
             <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center font-bold text-slate-400 shadow-sm">3</div>
-            <p class="text-sm text-slate-500 leading-relaxed">Click Approve to automatically update the bike status to "Rented".</p>
+            <p class="text-sm text-slate-500 leading-relaxed">Click Approve to automatically update the bike status to "Reserved" and the rental status to "Approved.</p>
         </div>
     </div>
 </div>

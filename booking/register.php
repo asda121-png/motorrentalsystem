@@ -401,7 +401,7 @@ unset($_SESSION['global_error'], $_SESSION['success']);
                 </div>
                 
                 <p class="mt-12 text-center text-[10px] text-gray-400 uppercase tracking-widest font-medium">
-                    © 2024 Mati City Rentals. All Rights Reserved.
+                    © 2025 Mati City Rentals. All Rights Reserved.
                 </p>
             </div>
         </div>

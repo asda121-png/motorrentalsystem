@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                     </div>
                     <span class="font-bold text-primary uppercase tracking-tight">Mati Rentals</span>
                 </div>
-                <p class="text-gray-400 text-sm">© 2024 Mati City Motorcycle Rental Services.</p>
+                <p class="text-gray-400 text-sm">© 2025 Mati City Motorcycle Rental Services.</p>
             </div>
         </div>
     </footer>
